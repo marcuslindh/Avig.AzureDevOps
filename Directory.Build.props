@@ -1,0 +1,78 @@
+<Project>
+
+  <!--
+    Shared metadata and static analysis for both projects.
+
+    The analyzers are Medusa's set (Medusa/docs/code-quality.md), with the same
+    versions, plus Roslynator.Formatting, which the code had in AI Code Review where it was written.
+    The rules' severities are in .editorconfig.
+  -->
+  <PropertyGroup>
+    <Authors>Marcus Lindh</Authors>
+    <Company>Marcus Lindh</Company>
+    <Copyright>Copyright (c) 2026 Marcus Lindh</Copyright>
+    <NeutralLanguage>en</NeutralLanguage>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!--
+      The documentation file is needed for IDE0005 (unnecessary using directives) to run in the build,
+      and ships with the package so that consumers get the comments in their editor.
+    -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-all</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <!--
+      A warning that is allowed to stay becomes a warning people stop reading. Either the rule
+      is worth following, and then it should stop the build, or it should be turned off in
+      .editorconfig with a justification.
+    -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- PrivateAssets=all: the rules are a build-time matter and must not become dependencies of the package.
+         publish.ps1 fails if anything other than the expected dependencies ends up in the nuspec. -->
+    <PackageReference Include="Meziantou.Analyzer" Version="3.0.316">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Roslynator.Analyzers" Version="5.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Roslynator.Formatting.Analyzers" Version="5.0.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp" Version="10.35.0.4138">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="AsyncFixer" Version="2.1.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.VisualStudio.Threading.Analyzers" Version="18.12.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Avig.Analyzers" Version="1.2.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <!-- Medusa.Analyzers for the Result rules (MEDUSA0012-0015, 0027, 0029): the package's public
+         surface is built on Avig.Result. The CQRS and MVC rules are silent here, because the types
+         they look for do not exist. Fetched from G:\LocalNugetRepo, see nuget.config. -->
+    <PackageReference Include="Medusa.Analyzers" Version="1.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

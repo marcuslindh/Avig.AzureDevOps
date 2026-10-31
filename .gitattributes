@@ -1,0 +1,10 @@
+# Line endings must not be left to the individual machine's core.autocrlf - a package that
+# builds the same everywhere should also look the same in the diff everywhere.
+* text=auto eol=crlf
+
+*.sh text eol=lf
+
+*.png binary
+*.jpg binary
+*.snk binary
+*.nupkg binary

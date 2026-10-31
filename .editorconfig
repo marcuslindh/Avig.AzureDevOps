@@ -1,0 +1,482 @@
+root = true
+
+# ===========================================================================
+#  Avig.AzureDevOps — coding standard
+#
+#  Copied from AI Code Review, where the code was written, and raised to the set in
+#  Medusa/docs/code-quality.md: all AVIG rules at error, explicit
+#  bool comparisons allowed, and the Medusa.Analyzers Result rules.
+#
+#  The build runs with TreatWarningsAsErrors. A rule set to "warning" here
+#  therefore stops the build just as "error" does; the difference is that "error"
+#  marks the rule as closed for discussion. A rule that is turned off
+#  must have a justification next to it — otherwise the next reader cannot tell
+#  whether it is off for a reason or out of laziness.
+# ===========================================================================
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+indent_style = space
+trim_trailing_whitespace = true
+
+[*.{cs,razor}]
+indent_size = 4
+
+[*.{json,js,css,html,yml,yaml,xml,csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.md]
+indent_size = 2
+trim_trailing_whitespace = false
+
+# Generated code is not reviewed — it is rewritten on the next build.
+[*.{g,g.i,designer,generated}.cs]
+generated_code = true
+
+# ===========================================================================
+#  C#
+# ===========================================================================
+
+[*.cs]
+
+# RCS1033/S1125: explicit bool comparisons (if (x == true)) are the convention, see
+# Medusa/docs/code-quality.md. The rules would otherwise want to remove them.
+dotnet_diagnostic.RCS1033.severity = none
+dotnet_diagnostic.S1125.severity = none
+
+# --------------------------------------------------------- using directives
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:warning
+# An unused using is a dependency that does not exist. Leaving it in
+# makes it harder to see what the file actually rests on.
+dotnet_diagnostic.IDE0005.severity = error
+
+# CS1591: Missing XML comment for publicly visible member.
+# The documentation file is generated only so that IDE0005 works in the build, not
+# to be published. Requiring a comment on every public member would produce
+# empty repetitions of the name instead of the explanations that actually exist
+# where they are needed.
+dotnet_diagnostic.CS1591.severity = none
+
+# ------------------------------------------------------------- the language
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_prefer_braces = true:warning
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+# Explicit type instead of var. The type should be written in the code and not have to be
+# looked up in the editor — a diff in a pull request has no type information to hover over.
+csharp_style_var_for_built_in_types = false
+csharp_style_var_when_type_is_apparent = false
+csharp_style_var_elsewhere = false
+dotnet_diagnostic.IDE0008.severity = error
+
+# With the type written out on the left, "new Type()" is the same word twice. IDE0090
+# requires "new()" instead, so the ban on var does not cost readability.
+csharp_style_implicit_object_creation_when_type_is_apparent = true
+dotnet_diagnostic.IDE0090.severity = error
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+dotnet_style_prefer_collection_expression = true:suggestion
+
+dotnet_style_readonly_field = true:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
+dotnet_style_object_initializer = true:suggestion
+dotnet_style_coalesce_expression = true:warning
+dotnet_style_null_propagation = true:warning
+dotnet_style_prefer_is_null_check_over_reference_equality_method = true:warning
+
+csharp_style_prefer_readonly_struct = true:warning
+csharp_style_prefer_readonly_struct_member = true:warning
+csharp_prefer_static_local_function = true:warning
+csharp_style_prefer_not_pattern = true:warning
+csharp_style_prefer_null_check_over_type_check = true:warning
+csharp_style_unused_value_expression_statement_preference = discard_variable:silent
+
+# A class that is not inherited from should be sealed — it is both faster and clearer.
+dotnet_diagnostic.CA1852.severity = warning
+
+# --------------------------------------------------------------- formatting
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+
+# IDE0055 fixes formatting with "dotnet format" and is therefore free to
+# keep clean. It also catches the cases where a hasty edit has left
+# the indentation crooked.
+dotnet_diagnostic.IDE0055.severity = warning
+
+# ------------------------------------------------------------------ naming
+dotnet_naming_rule.private_fields_underscore.severity = warning
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_prefix
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+
+dotnet_naming_style.underscore_prefix.required_prefix = _
+dotnet_naming_style.underscore_prefix.capitalization = camel_case
+
+# ===========================================================================
+#  Rules waiting for a sweep
+# ===========================================================================
+#
+#  Measured, too many hits to be set to error today. Each one has its
+#  count written down: that is what makes it possible to raise the rule later without
+#  having to measure again first.
+
+# RCS0055: formatting of binary expressions.
+# Wants to put each operand of a multi-line && or || on its own line with the operator
+# first. Measured: 522 hits. Raise after a sweep — the rule is mechanical and has
+# a code fix, so the sweep is "dotnet format analyzers" plus a read-through.
+dotnet_diagnostic.RCS0055.severity = suggestion
+
+# RCS0053: formatting of argument and parameter lists.
+# Measured: 232 hits. Same thing: mechanical, has a code fix.
+dotnet_diagnostic.RCS0053.severity = suggestion
+
+# MA0003: name the argument when the call cannot be read without the name.
+# Measured: 222 hits, most of them single-argument calls where the name adds
+# nothing. The rule is right about bool and null arguments but has no way to
+# tell them apart from the rest, so it stays here until it can be narrowed down.
+dotnet_diagnostic.MA0003.severity = suggestion
+
+# ===========================================================================
+#  Rules that are turned off, with reasons
+# ===========================================================================
+
+# IDE1006: Naming rule violation.
+# The rule fires on what the frameworks decide for us: Razor's generated members
+# and JSON properties that must be named the way the API wants. The underscore on private
+# fields remains as a convention in the naming rules above; what goes away is
+# the reminder of it.
+dotnet_diagnostic.IDE1006.severity = none
+
+# AsyncFixer01: remove async/await when the method only awaits a single expression.
+# The micro-optimisation costs what makes a failure debuggable: without await the
+# exception is thrown synchronously at the call instead of where it belongs, and the method
+# disappears from the stack trace. Measured: 7 places, all intentional.
+dotnet_diagnostic.AsyncFixer01.severity = none
+
+# MA0048: File name must match type name.
+# The project deliberately puts a use case and its result record in the same file,
+# and an enum next to what it describes. Spreading them out into one file per type
+# would make them harder to read, not easier.
+dotnet_diagnostic.MA0048.severity = none
+
+# CA2007: Consider calling ConfigureAwait.
+# MA0004 says the same thing but knows the difference between library and UI code,
+# so having both on gives two errors for the same line.
+dotnet_diagnostic.CA2007.severity = none
+
+# CA1062: Validate arguments of public methods.
+# Nullable reference types are on, and violations are compile errors.
+# Also throwing ArgumentNullException in every public method would be
+# the same check once more, in a solution that has no external
+# consumers. Where an argument comes from outside — a path from the user,
+# a file on disk — the check stays in the code.
+dotnet_diagnostic.CA1062.severity = none
+
+# CA1859: Use concrete types when possible for improved performance.
+# The rule wants methods to return List<T> instead of IReadOnlyList<T>.
+# That leaks a mutable collection to the caller for a micro-optimisation we
+# do not need.
+dotnet_diagnostic.CA1859.severity = none
+
+# CA1873: Avoid potentially expensive logging.
+# Fires on plain variables as arguments, not only on expensive expressions. With
+# the LoggerMessage generator the arguments are, moreover, already strongly typed and
+# allocation-free.
+dotnet_diagnostic.CA1873.severity = none
+
+# CA1814: Prefer jagged arrays over multidimensional.
+# The LCS table in the diff computation is rectangular by nature. A jagged
+# array would be both slower and more awkward here.
+dotnet_diagnostic.CA1814.severity = none
+
+# CA1724: Type name conflicts with a namespace name.
+# "DependencyInjection" is the established name for the class with the
+# AddXxx methods. Renaming it to avoid a clash with
+# Microsoft.Extensions.DependencyInjection would be worse for the reader.
+dotnet_diagnostic.CA1724.severity = none
+
+# CA1720: Identifier contains a type name.
+# LineRange.Single reads correctly: a range of a single line.
+dotnet_diagnostic.CA1720.severity = none
+
+# MA0008: Add StructLayoutAttribute.
+# None of the structs here are passed to unmanaged code.
+dotnet_diagnostic.MA0008.severity = none
+
+# MA0045: Make the method asynchronous instead of blocking.
+# MA0042 catches what is dangerous: a blocking call in a method that is already
+# asynchronous. MA0045 goes further and wants to turn synchronous methods into asynchronous ones,
+# and there are deliberately synchronous paths here — the configuration is read once behind
+# a Lazy, and the code analysis is built inside a Task.Run on the thread pool. Infecting them
+# with async would spread all the way out to Supports(), which has to be a plain
+# predicate.
+dotnet_diagnostic.MA0045.severity = none
+
+# S3267: Loops should be simplified with LINQ expressions.
+# A foreach that does work per element is often clearer than a LINQ chain,
+# especially when the body logs or handles exceptions.
+dotnet_diagnostic.S3267.severity = none
+
+# S4036: Use an absolute path for the command.
+# git is deliberately run via PATH: the tool should use the git the user has,
+# not one we have guessed at.
+dotnet_diagnostic.S4036.severity = none
+
+# CA1031: Do not catch System.Exception.
+# Code intelligence, git and language servers are conveniences. Letting an unexpected
+# exception from them take down the review would be the wrong trade-off, and every such
+# catch has a filter that lets OperationCanceledException through.
+dotnet_diagnostic.CA1031.severity = none
+
+# CA1032 / RCS1194: Implement all standard exception constructors.
+# DomainException always carries a message about which rule was broken. A
+# parameterless constructor would create an exception that says nothing,
+# and the only reason to have it was serialisation with BinaryFormatter,
+# which no longer exists.
+dotnet_diagnostic.CA1032.severity = none
+dotnet_diagnostic.RCS1194.severity = none
+
+# MA0016: Return an abstraction instead of a concrete collection.
+# The opposite of CA1859 above; we follow this one, but it overlaps with
+# CA1002 and gives double errors.
+dotnet_diagnostic.CA1002.severity = none
+
+# ===========================================================================
+#  Rules that are stricter than the default
+# ===========================================================================
+
+# ---------------------------------------------------- asynchronous code
+# A blocking call in asynchronous code freezes the UI. It has happened in
+# this tool more than once, and it is always the same thing: someone waits for
+# a result on the thread that draws the window.
+dotnet_diagnostic.MA0004.severity = error
+dotnet_diagnostic.MA0042.severity = error
+dotnet_diagnostic.VSTHRD002.severity = error
+dotnet_diagnostic.VSTHRD103.severity = error
+dotnet_diagnostic.CA1849.severity = error
+dotnet_diagnostic.S6966.severity = error
+
+# An async void swallows its exceptions and takes down the process instead.
+dotnet_diagnostic.VSTHRD100.severity = error
+dotnet_diagnostic.VSTHRD110.severity = error
+dotnet_diagnostic.MA0134.severity = error
+
+# VSTHRD200: requires the Async suffix. Already the naming convention here, but
+# the rule also fires on local functions and delegates, where it only gets in the way.
+dotnet_diagnostic.VSTHRD200.severity = none
+
+# A CancellationToken that is not passed on makes cancellation ineffective.
+dotnet_diagnostic.MA0040.severity = error
+dotnet_diagnostic.MA0032.severity = error
+dotnet_diagnostic.MA0079.severity = error
+dotnet_diagnostic.S8949.severity = error
+
+# ----------------------------------------------------------- correctness
+dotnet_diagnostic.CA1848.severity = error
+dotnet_diagnostic.CA1822.severity = error
+dotnet_diagnostic.CA1802.severity = error
+dotnet_diagnostic.CA1869.severity = error
+dotnet_diagnostic.CA2213.severity = error
+dotnet_diagnostic.CA2016.severity = error
+dotnet_diagnostic.S2325.severity = error
+dotnet_diagnostic.S1481.severity = error
+dotnet_diagnostic.S1854.severity = error
+dotnet_diagnostic.S3358.severity = error
+dotnet_diagnostic.S1186.severity = error
+
+# S127: the variable in the loop's stop condition is reassigned inside the body.
+# The number of iterations then cannot be read from the loop header, and a jump out of a
+# loop that looks like it counts up is one of the bugs that survive the longest.
+dotnet_diagnostic.S127.severity = error
+
+# Unnecessary code is code that still has to be read.
+dotnet_diagnostic.RCS1163.severity = error
+dotnet_diagnostic.RCS1123.severity = error
+dotnet_diagnostic.RCS1113.severity = error
+dotnet_diagnostic.RCS1085.severity = error
+dotnet_diagnostic.RCS1214.severity = error
+dotnet_diagnostic.RCS1199.severity = error
+dotnet_diagnostic.RCS1197.severity = error
+dotnet_diagnostic.RCS1261.severity = error
+dotnet_diagnostic.IDE0290.severity = error
+dotnet_diagnostic.IDE0330.severity = error
+
+# ------------------------------------------------- strings and cultures
+# The tool compares paths, branch names and file extensions. A culture-dependent
+# comparison there gives the wrong answer on a Turkish machine and the right answer on ours.
+dotnet_diagnostic.MA0006.severity = error
+dotnet_diagnostic.MA0011.severity = error
+dotnet_diagnostic.MA0074.severity = error
+dotnet_diagnostic.CA1307.severity = error
+dotnet_diagnostic.CA1310.severity = error
+dotnet_diagnostic.CA1305.severity = error
+dotnet_diagnostic.CA1311.severity = error
+
+# S6618: string.Create instead of FormattableString.Invariant.
+# Same result, but without building an intermediate FormattableString that is
+# thrown away immediately.
+dotnet_diagnostic.S6618.severity = error
+
+# --------------------------------------------------------------- security
+# The tool reads files and paths that come from outside and runs git as a
+# subprocess. None of these rules should ever need to be discussed.
+dotnet_diagnostic.CA5350.severity = error
+dotnet_diagnostic.CA5351.severity = error
+dotnet_diagnostic.CA5390.severity = error
+dotnet_diagnostic.CA5394.severity = error
+dotnet_diagnostic.CA5397.severity = error
+dotnet_diagnostic.CA5398.severity = error
+dotnet_diagnostic.CA5384.severity = error
+dotnet_diagnostic.CA5385.severity = error
+dotnet_diagnostic.CA5389.severity = error
+dotnet_diagnostic.CA3061.severity = error
+dotnet_diagnostic.CA3075.severity = error
+dotnet_diagnostic.CA3076.severity = error
+dotnet_diagnostic.CA3077.severity = error
+dotnet_diagnostic.S2068.severity = error
+dotnet_diagnostic.S6418.severity = error
+dotnet_diagnostic.S2076.severity = error
+dotnet_diagnostic.S2078.severity = error
+dotnet_diagnostic.S3649.severity = error
+dotnet_diagnostic.S5443.severity = error
+
+# S1075: hard-coded URIs.
+# The tool talks to Azure DevOps, and the addresses are built from the organisation and
+# project that come from the repo's own remote. An address that is hard-coded anyway is
+# either a mistake or something that belongs in the configuration.
+# Measured when the rule was introduced: 0 hits.
+dotnet_diagnostic.S1075.severity = error
+
+# RCS1233: use && and || instead of & and | on bool.
+# Without short-circuiting, the right operand runs even when the left has settled it, which turns
+# a null guard into nothing. Measured: 0 hits.
+dotnet_diagnostic.RCS1233.severity = error
+
+# -------------------------------------------------------------- blank lines
+# The formatting rules below cover what otherwise becomes a matter of personal taste and
+# therefore drifts apart in a codebase. All measured 0 hits when they were introduced:
+# the code was already written this way, and the rule only makes sure it keeps being so.
+dotnet_diagnostic.RCS0008.severity = error
+dotnet_diagnostic.RCS0010.severity = error
+dotnet_diagnostic.RCS0014.severity = error
+dotnet_diagnostic.RCS0016.severity = error
+dotnet_diagnostic.RCS0051.severity = error
+dotnet_diagnostic.RCS0056.severity = error
+dotnet_diagnostic.RCS0060.severity = error
+dotnet_diagnostic.RCS0063.severity = error
+
+# A regex without a timeout is a hang waiting for the right input.
+dotnet_diagnostic.MA0009.severity = error
+dotnet_diagnostic.S6444.severity = error
+
+# SQL is built with parameters, never with string concatenation. The migrations are
+# exempted in place, with a justification, because DDL cannot be parameterised.
+dotnet_diagnostic.CA2100.severity = error
+dotnet_diagnostic.S2077.severity = error
+
+# ------------------------------------------------------------------- size
+# A method of more than a hundred lines cannot be held in your head. The limit is
+# raised from 60 to 100: there is code here that is long for good reasons —
+# migration steps and lookups that do one thing after another — but beyond
+# a hundred lines there is always something that should be a method of its own.
+dotnet_diagnostic.MA0051.severity = error
+MA0051.maximum_lines_per_method = 100
+
+# ---------------------------------------------------------------- Avig
+# Avig.Analyzers at error: a rule that does not stop the build is a rule an agent
+# does not have to follow. The rules with a code fix are fixed with dotnet format analyzers.
+dotnet_diagnostic.AVIG0001.severity = error
+dotnet_diagnostic.AVIG0002.severity = error
+dotnet_diagnostic.AVIG0003.severity = error
+dotnet_diagnostic.AVIG0004.severity = error
+dotnet_diagnostic.AVIG0005.severity = error
+dotnet_diagnostic.AVIG0007.severity = error
+dotnet_diagnostic.AVIG0008.severity = error
+dotnet_diagnostic.AVIG0009.severity = error
+dotnet_diagnostic.AVIG0010.severity = error
+dotnet_diagnostic.AVIG0011.severity = error
+dotnet_diagnostic.AVIG0012.severity = error
+dotnet_diagnostic.AVIG0014.severity = error
+dotnet_diagnostic.AVIG0015.severity = error
+dotnet_diagnostic.AVIG0020.severity = error
+dotnet_diagnostic.AVIG0021.severity = error
+dotnet_diagnostic.AVIG0022.severity = error
+dotnet_diagnostic.AVIG0023.severity = error
+
+# AVIG0024: conditional expression (?:) instead of an if statement. New in Avig.Analyzers 1.2.0.
+dotnet_diagnostic.AVIG0024.severity = error
+
+# AVIG0006: CRLF. The repo has a .gitattributes that locks the line endings, so the working copy
+# looks the same on every machine. A tool that writes LF is caught by the build.
+dotnet_diagnostic.AVIG0006.severity = error
+
+# ===========================================================================
+#  Tests
+# ===========================================================================
+
+[tests/**/*.cs]
+
+# A test has no synchronisation context to take into account.
+dotnet_diagnostic.MA0004.severity = none
+dotnet_diagnostic.VSTHRD111.severity = none
+
+# A test does not log in production; the LoggerMessage ceremony adds nothing.
+dotnet_diagnostic.CA1848.severity = none
+
+# Test helpers are often used from only a few tests and look unused.
+dotnet_diagnostic.S1144.severity = none
+dotnet_diagnostic.CA1812.severity = none
+
+# A test may well be long if that makes the arrangement clear.
+dotnet_diagnostic.MA0051.severity = none
+
+# Test classes are instantiated by xUnit and do not need to be static.
+dotnet_diagnostic.CA1822.severity = none
+dotnet_diagnostic.S2325.severity = none
+
+# Tests deliberately compare against invariant strings and literals.
+dotnet_diagnostic.CA1305.severity = none
+dotnet_diagnostic.MA0011.severity = none
+
+# VSTHRD003: do not await a task that was started elsewhere.
+# The rule protects against deadlocks under a synchronisation context. A test has none.
+dotnet_diagnostic.VSTHRD003.severity = none
+
+# CA1054/CA1056: a test feeds in and checks addresses as text, exactly as they
+# come out of git and go out on the wire.
+dotnet_diagnostic.CA1054.severity = none
+dotnet_diagnostic.CA1056.severity = none
+
+# MA0002: a test deliberately compares against literals and needs no comparer.
+dotnet_diagnostic.MA0002.severity = none
+
+# MA0032/MA0040: a test is not cancelled, it runs to completion or fails.
+dotnet_diagnostic.MA0032.severity = none
+dotnet_diagnostic.MA0040.severity = none
+
+# A test project has no consumers, and the helper classes reach each other anyway.
+dotnet_diagnostic.CA1515.severity = none
+
+# CA2000/CA2100: the helpers set up and tear down real files and clients per
+# test. The lifetime is the test's.
+dotnet_diagnostic.CA2000.severity = none
+dotnet_diagnostic.CA2100.severity = none
+
+# MA0016: a test arrangement adds to its own lists.
+dotnet_diagnostic.MA0016.severity = none
+
+# The xUnit rules that catch real mistakes in assertions.
+dotnet_diagnostic.xUnit2024.severity = error
+dotnet_diagnostic.xUnit2025.severity = error
+
+# xUnit2008: Assert.Matches instead of Assert.True(regex.IsMatch(...)).
+# A failed Assert.True only says "false"; Assert.Matches prints both
+# the pattern and the text that did not match.
+dotnet_diagnostic.xUnit2008.severity = error

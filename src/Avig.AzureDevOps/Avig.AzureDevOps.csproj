@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Deterministic build with embedded symbols and SourceLink, like Avig.Result. -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!--
+      publish.ps1 raises the version one step on every publish, like an odometer where every
+      digit runs 0-9: 1.0.9 -> 1.1.0, 1.9.9 -> 2.0.0. A package that is already in the feed must
+      never be replaced under the same number: whoever has cached it keeps their copy and runs
+      different code from whoever fetches it fresh. publish.ps1 refuses to pack over a version
+      that already exists.
+    -->
+    <IsPackable>true</IsPackable>
+    <PackageId>Avig.AzureDevOps</PackageId>
+    <Version>1.0.0</Version>
+    <Title>Avig.AzureDevOps</Title>
+    <Description>Clients for the Azure DevOps REST API — pull requests, work items, builds and wiki — sign-in with a personal access token that the application supplies, throttling that honours Retry-After, and every call answering with a Result whose message is written to be shown as it is.</Description>
+    <PackageTags>azure-devops;pull-requests;work-items;wiki;rest</PackageTags>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageProjectUrl>https://github.com/marcuslindh/Avig.AzureDevOps</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/marcuslindh/Avig.AzureDevOps</RepositoryUrl>
+    <PackageReleaseNotes>First release. Clients for pull requests, work items, builds and the wiki. The application supplies the token through a function; the package stores nothing. Statuses are enums, and no call throws: every method answers with Result or Result&lt;T&gt;, with a message that can be shown to the user and a ResultStatus.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Result<T> is part of the public surface, so Avig.Result is a real dependency. -->
+    <PackageReference Include="Avig.Result" Version="1.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Avig.AzureDevOps.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- One README, two jobs: the Git host renders it at the root, NuGet inside the package. -->
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,25 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+TestResults/
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+*.userprefs
+*.DotSettings.user
+
+# Packages
+*.nupkg
+*.snupkg
+
+# Other
+*.log
+Thumbs.db
+[Dd]esktop.ini
+
+# Local AI code review state, not project content
+.aicodereview/
