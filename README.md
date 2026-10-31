@@ -835,5 +835,21 @@ accordingly; a 429 is retried once after the requested wait.
 ```powershell
 dotnet build Avig.AzureDevOps.slnx
 dotnet test Avig.AzureDevOps.slnx
-./publish.ps1            # tests, packs, verifies and copies to G:\LocalNugetRepo
+./publish.ps1            # raises the version, tests, packs, verifies and copies to G:\LocalNugetRepo
 ```
+
+## Releasing
+
+A release goes to nuget.org through a tag. `release.ps1` sets the version, tests, packs and
+checks the package, commits and tags; pushing the tag `vX.Y.Z` runs
+`.github/workflows/publish.yml`, which builds it again on a GitHub runner and pushes it with
+Trusted Publishing — no API key is stored anywhere.
+
+```powershell
+./release.ps1 -DryRun    # which version it would be, nothing changed
+./release.ps1            # verified, committed and tagged locally; nothing leaves the machine
+./release.ps1 -Push      # the same, pushed: the workflow publishes it
+```
+
+The version counts one step per release, every digit 0–9: 1.0.0, 1.0.1 … 1.0.9, 1.1.0 …
+1.9.9, 2.0.0. The first release is 1.0.0.

@@ -25,7 +25,14 @@ dotnet build Avig.AzureDevOps.slnx
 dotnet test Avig.AzureDevOps.slnx
 ./publish.ps1             # raises the version one step, tests, packs, shape-checks, copies to G:\LocalNugetRepo
 ./publish.ps1 -NoBump     # the same, without raising the version
+./release.ps1 -DryRun     # the next release's version, nothing changed
+./release.ps1 -Push       # set the version, verify, commit, tag and push: publish.yml publishes to nuget.org
 ```
+
+`version.ps1` holds the version scheme, shared by both scripts. `.github/workflows/publish.yml`
+runs on a `v*` tag and pushes through Trusted Publishing; the nuget.org policy names the file
+`publish.yml`, so it must not be renamed. The workflow needs the repository secret `NUGET_USER`
+(the nuget.org profile name).
 
 ## Rules
 
@@ -44,9 +51,11 @@ dotnet test Avig.AzureDevOps.slnx
 ## Conventions
 
 The set in `G:\OneDrive\SkunkWorks\Dev\2026\Medusa\docs\code-quality.md` applies:
-Medusa's analyzers and versions in `Directory.Build.props`, all AVIG rules at `error`
-(including AVIG0006 CRLF and AVIG0024 conditional expressions), and Medusa.Analyzers for the
-Result rules. `.editorconfig` comes from AI Code Review, where the code was written.
+Medusa's analyzers and versions in `Directory.Build.props` and all AVIG rules at `error`
+(including AVIG0006 CRLF and AVIG0024 conditional expressions), with Avig.Analyzers from
+nuget.org. Medusa.Analyzers is not used: it exists only in the local feed, and every package
+must come from nuget.org so that the build runs on a GitHub runner. `.editorconfig` comes from
+AI Code Review, where the code was written.
 
 - Explicit types — never `var`. Explicit bool comparisons are allowed (`== false`).
 - No `?:` — an `if` statement, a default followed by an `if`, or a small helper method.

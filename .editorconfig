@@ -4,8 +4,9 @@ root = true
 #  Avig.AzureDevOps — coding standard
 #
 #  Copied from AI Code Review, where the code was written, and raised to the set in
-#  Medusa/docs/code-quality.md: all AVIG rules at error, explicit
-#  bool comparisons allowed, and the Medusa.Analyzers Result rules.
+#  Medusa/docs/code-quality.md: all AVIG rules at error and explicit
+#  bool comparisons allowed. The analyzers come from nuget.org; Medusa.Analyzers is not
+#  used, since it exists only in the local feed.
 #
 #  The build runs with TreatWarningsAsErrors. A rule set to "warning" here
 #  therefore stops the build just as "error" does; the difference is that "error"

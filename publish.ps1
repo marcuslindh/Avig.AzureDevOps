@@ -8,6 +8,10 @@
     local feed. The script never pushes anywhere. AI Code Review and Splice fetch
     the package from the feed via their nuget.config.
 
+    Publishing to nuget.org is release.ps1's job: it sets the version, tags it, and the tag
+    runs .github/workflows/publish.yml, which calls this script with -NoBump on a GitHub runner.
+    The runner has no local feed, and then the copy is skipped.
+
     The shape check allows exactly the dependencies the package should have. A new dependency ends up
     in every program that uses the package, and should therefore be added here on purpose -
     not sneak in via a PackageReference that forgot PrivateAssets.
@@ -15,11 +19,13 @@
 .PARAMETER NoBump
     Keep the current version instead of raising it.
 
+.PARAMETER SkipFeed
+    Neither check nor copy to the local feed. release.ps1 uses it to verify a release whose
+    version may already be in the feed from a local publish.
+
 .NOTES
-    The version counts like an odometer where every digit runs 0-9: 1.0.0, 1.0.1 ... 1.0.9,
-    1.1.0 ... 1.9.9, 2.0.0. Every publish raises it by one step; a breaking change gets no
-    jump of its own. The numbering started over at 1.0.0 before the first publish to
-    nuget.org.
+    The version scheme is in version.ps1: an odometer where every digit runs 0-9, so 1.0.9 is
+    followed by 1.1.0 and 1.9.9 by 2.0.0.
 
 .PARAMETER SkipTests
     Skip the test run. Use when you have already run them.
@@ -34,10 +40,13 @@ param(
     [switch]$NoBump,
     [switch]$SkipTests,
     [switch]$SkipVerify,
+    [switch]$SkipFeed,
     [string]$Feed = "G:\LocalNugetRepo"
 )
 
 $ErrorActionPreference = "Stop"
+
+. (Join-Path $PSScriptRoot "version.ps1")
 
 $name    = "Avig.AzureDevOps"
 $root    = $PSScriptRoot
@@ -73,35 +82,6 @@ if (-not $currentVersion) {
     exit 1
 }
 
-# The next version: patch up by one, and a digit that passes 9 becomes 0 and carries to the
-# one to its left. 1.0.9 -> 1.1.0, 1.9.9 -> 2.0.0.
-function Get-NextVersion([string]$current) {
-    $parts = $current.Split('.')
-    if ($parts.Count -ne 3 -or ($parts | Where-Object { $_ -notmatch '^\d+$' })) {
-        throw "The version $current is not major.minor.patch."
-    }
-
-    [int]$major = $parts[0]
-    [int]$minor = $parts[1]
-    [int]$patch = $parts[2]
-
-    if ($minor -gt 9 -or $patch -gt 9) {
-        throw "The version $current has a digit above 9; minor and patch run 0-9."
-    }
-
-    $patch++
-    if ($patch -gt 9) {
-        $patch = 0
-        $minor++
-    }
-    if ($minor -gt 9) {
-        $minor = 0
-        $major++
-    }
-
-    return "$major.$minor.$patch"
-}
-
 if ($NoBump) {
     $version = $currentVersion
     Write-Host "      $version (no bump)" -ForegroundColor Yellow
@@ -117,7 +97,7 @@ if ($NoBump) {
 # A package that is already in the feed must never be replaced under the same number: whoever
 # has cached it keeps their copy and runs different code from whoever fetches it fresh.
 $existing = Join-Path $Feed "$name.$version.nupkg"
-if (Test-Path $existing) {
+if (-not $SkipFeed -and (Test-Path $existing)) {
     Write-Host "      ERROR: $name $version already exists in the feed." -ForegroundColor Red
     Write-Host "             Raise <Version> instead of overwriting it." -ForegroundColor Red
     exit 1
@@ -203,14 +183,18 @@ if ($SkipVerify) {
 }
 
 # --- [5/5] Copy to the local feed ---
-Write-Host "[5/5] Copying to the feed..." -ForegroundColor Yellow
-if (-not (Test-Path $Feed)) {
-    New-Item -Path $Feed -ItemType Directory | Out-Null
-}
-
-Get-ChildItem -Path $packDir -Filter "$name.$version.*nupkg" | ForEach-Object {
-    Copy-Item $_.FullName -Destination $Feed -Force
-    Write-Host "      $Feed\$($_.Name)" -ForegroundColor Green
+# The feed is this machine's. A GitHub runner has none, and then the package simply stays in
+# bin\Release, where the publish workflow picks it up.
+if ($SkipFeed) {
+    Write-Host "[5/5] Feed skipped - the package stays in bin\Release" -ForegroundColor DarkYellow
+} elseif (-not (Test-Path $Feed)) {
+    Write-Host "[5/5] $Feed does not exist - the package stays in bin\Release" -ForegroundColor DarkYellow
+} else {
+    Write-Host "[5/5] Copying to the feed..." -ForegroundColor Yellow
+    Get-ChildItem -Path $packDir -Filter "$name.$version.*nupkg" | ForEach-Object {
+        Copy-Item $_.FullName -Destination $Feed -Force
+        Write-Host "      $Feed\$($_.Name)" -ForegroundColor Green
+    }
 }
 
 Write-Host ""
