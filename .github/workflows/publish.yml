@@ -57,10 +57,10 @@ jobs:
 
           Write-Host "Tag and package version agree on $version"
 
-      # The runner has no local feed; publish.ps1 leaves the package in bin\Release.
+      # publish.ps1 leaves the package in bin\Release, where the next step finds it.
       - name: Test, pack and check the package shape
         shell: pwsh
-        run: ./publish.ps1 -NoBump -SkipFeed
+        run: ./publish.ps1
 
       - name: Locate the package
         id: package

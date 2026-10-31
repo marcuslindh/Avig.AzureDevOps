@@ -1,5 +1,4 @@
-# The version scheme, shared by publish.ps1 and release.ps1 so that the two can never count
-# differently. Dot-source it: . (Join-Path $PSScriptRoot "version.ps1")
+# The version scheme, used by release.ps1. Dot-source it: . (Join-Path $PSScriptRoot "version.ps1")
 #
 # The version counts like an odometer where every digit runs 0-9: 1.0.0, 1.0.1 ... 1.0.9,
 # 1.1.0 ... 1.9.9, 2.0.0. Every step raises it by one; a breaking change gets no jump of its

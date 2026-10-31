@@ -13,9 +13,8 @@
 
     The version follows version.ps1: one step per release, every digit 0-9, so 1.0.9 is
     followed by 1.1.0 and 1.9.9 by 2.0.0. The first release, before any v* tag exists, is the
-    version already in the csproj - 1.0.0. After that every release steps from the csproj's
-    version. A local publish.ps1 that raised the csproj in between therefore makes the release
-    skip that number on nuget.org, which is the point: a number never names two different builds.
+    version already in the csproj. After that every release steps from the csproj's version,
+    and this script is the only thing that changes it.
 
     The package is tested, packed and shape-checked BEFORE the tag is created, so a release that
     cannot be built never becomes a tag. If that verification fails, the csproj is restored.
@@ -24,17 +23,13 @@
     Set an explicit version instead of the next step, e.g. 2.0.0 or 2.0.0-rc.1.
 
 .PARAMETER Push
-    Push the branch and the tag when everything succeeded, which starts the publish workflow,
-    and copy the package to the local feed.
+    Push the branch and the tag when everything succeeded, which starts the publish workflow.
 
 .PARAMETER DryRun
     Report what would happen and change nothing.
 
 .PARAMETER Branch
     The branch a release may be cut from. Defaults to main.
-
-.PARAMETER Feed
-    The local feed the released package is copied to after a push.
 
 .EXAMPLE
     ./release.ps1
@@ -52,8 +47,7 @@ param(
     [string]$Version,
     [switch]$Push,
     [switch]$DryRun,
-    [string]$Branch = "main",
-    [string]$Feed = "G:\LocalNugetRepo"
+    [string]$Branch = "main"
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,7 +57,6 @@ $ErrorActionPreference = "Stop"
 $name    = "Avig.AzureDevOps"
 $root    = $PSScriptRoot
 $project = Join-Path $root "src\$name\$name.csproj"
-$packDir = Join-Path $root "src\$name\bin\Release"
 $publish = Join-Path $root "publish.ps1"
 
 function Fail([string]$Message) {
@@ -177,9 +170,7 @@ Write-Host "[3/5] Verifying the package..." -ForegroundColor Yellow
 if ($DryRun) {
     Write-Host "      skipped in a dry run" -ForegroundColor Yellow
 } else {
-    # The feed is left alone here: the version may already be there from a local publish, and the
-    # package goes to the feed only once the release has been pushed.
-    & $publish -NoBump -SkipFeed
+    & $publish
     if ($LASTEXITCODE -ne 0) {
         Write-Host "      publish.ps1 failed - restoring the csproj, no tag created." -ForegroundColor Red
         git -C $root checkout -- $project
@@ -232,20 +223,6 @@ if ($DryRun) {
     }
 
     Write-Host "      pushed - the publish workflow is starting" -ForegroundColor Green
-
-    # The same version in the local feed, for AI Code Review and Splice. Never over one that is
-    # already there: whoever has cached it would keep running the other build.
-    if (Test-Path $Feed) {
-        $existing = Join-Path $Feed "$name.$next.nupkg"
-        if (Test-Path $existing) {
-            Write-Host "      $name $next is already in $Feed from a local publish - left as it is" -ForegroundColor Yellow
-        } else {
-            Get-ChildItem -Path $packDir -Filter "$name.$next.*nupkg" | ForEach-Object {
-                Copy-Item $_.FullName -Destination $Feed
-                Write-Host "      $Feed\$($_.Name)" -ForegroundColor Green
-            }
-        }
-    }
 } else {
     Write-Host "      not pushed (pass -Push to do it here)" -ForegroundColor Yellow
 }
