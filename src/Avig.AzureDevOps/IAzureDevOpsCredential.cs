@@ -18,6 +18,8 @@ public interface IAzureDevOpsCredential
     bool IsConfigured { get; }
 
     /// <summary>Sets the authorization on a request.</summary>
+    /// <param name="request">The request to authorize.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>
     /// Success, or a failure with <see cref="ResultStatus.Unauthorized"/> and a message for the
     /// user when there is no sign-in to use. The request is then not sent.

@@ -14,11 +14,9 @@
 
   <PropertyGroup>
     <!--
-      publish.ps1 raises the version one step on every publish, like an odometer where every
-      digit runs 0-9: 1.0.9 -> 1.1.0, 1.9.9 -> 2.0.0. A package that is already in the feed must
-      never be replaced under the same number: whoever has cached it keeps their copy and runs
-      different code from whoever fetches it fresh. publish.ps1 refuses to pack over a version
-      that already exists.
+      release.ps1 raises the version one step on every release, like an odometer where every
+      digit runs 0-9: 1.0.9 -> 1.1.0, 1.9.9 -> 2.0.0. Nothing else changes it. A released version
+      is never replaced: nuget.org refuses, and release.ps1 refuses a tag that already exists.
     -->
     <IsPackable>true</IsPackable>
     <PackageId>Avig.AzureDevOps</PackageId>
@@ -30,7 +28,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageProjectUrl>https://github.com/marcuslindh/Avig.AzureDevOps</PackageProjectUrl>
     <RepositoryUrl>https://github.com/marcuslindh/Avig.AzureDevOps</RepositoryUrl>
-    <PackageReleaseNotes>First release. Clients for pull requests, work items, builds and the wiki. The application supplies the token through a function; the package stores nothing. Statuses are enums, and no call throws: every method answers with Result or Result&lt;T&gt;, with a message that can be shown to the user and a ResultStatus.</PackageReleaseNotes>
+    <PackageReleaseNotes>No exceptions inside the package either: every method checks its arguments and answers with ResultStatus.Invalid and a message saying what is missing, network errors and timeouts become ResultStatus.Unavailable, and failures keep their message and status on the way out. Every member is documented, with every parameter.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

@@ -33,6 +33,7 @@ public sealed class AzureDevOpsWorkItemTests
     private static JsonElement Json(string? body) => JsonSerializer.Deserialize<JsonElement>(body ?? "{}");
 
     /// <summary>A response with two numbers and the fields that belong to them.</summary>
+    /// <param name="server">The server that is to answer.</param>
     private static void RespondWithTwo(FakeAzureDevOps server)
     {
         server.Respond("wiql", """{"workItems":[{"id":41},{"id":42}]}""");
@@ -438,13 +439,13 @@ public sealed class AzureDevOpsWorkItemTests
         Assert.Contains(
             patch.EnumerateArray(),
             operation => string.Equals(
-                             operation.GetProperty("path").GetString(),
-                             "/fields/System.Title",
-                             StringComparison.Ordinal)
-                         && string.Equals(
-                             operation.GetProperty("op").GetString(),
-                             "add",
-                             StringComparison.Ordinal));
+                operation.GetProperty("path").GetString(),
+                "/fields/System.Title",
+                StringComparison.Ordinal)
+                && string.Equals(
+                    operation.GetProperty("op").GetString(),
+                    "add",
+                    StringComparison.Ordinal));
     }
 
     [Fact]

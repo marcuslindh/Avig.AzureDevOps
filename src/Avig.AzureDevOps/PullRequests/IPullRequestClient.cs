@@ -23,11 +23,11 @@ public sealed record PullRequestSummary(
 /// to a line in it.
 /// </summary>
 /// <param name="Path">The path Azure DevOps uses, with a leading slash.</param>
+/// <param name="ChangeType">What happened to the file; several flags at once for a file that was, say, both moved and edited.</param>
 /// <param name="ChangeTrackingId">
 /// The number that ties the file to the iteration. Without it, the comment ends up on the
 /// overview tab instead of on the line.
 /// </param>
-/// <param name="ChangeType">What happened to the file; several flags at once for a file that was, say, both moved and edited.</param>
 public sealed record PullRequestFile(string Path, int ChangeTrackingId, PullRequestChangeType ChangeType);
 
 /// <summary>A pull request with the iteration and the files the comments are to attach to.</summary>
@@ -110,10 +110,10 @@ public enum PullRequestVote
 /// <summary>A reviewer on a pull request.</summary>
 /// <param name="Identity">Who.</param>
 /// <param name="Vote">The vote.</param>
+/// <param name="IsGroup">Whether the reviewer is a group rather than a person.</param>
 /// <param name="IsRequired">
 /// Whether the vote is required for the pull request to be completed.
 /// </param>
-/// <param name="IsGroup">Whether the reviewer is a group rather than a person.</param>
 public sealed record PullRequestReviewer(
     AzureDevOpsIdentity Identity,
     PullRequestVote Vote,
@@ -126,12 +126,12 @@ public sealed record PullRequestReviewer(
 /// <param name="IsDraft">Whether it is a draft.</param>
 /// <param name="Description">The description as markdown.</param>
 /// <param name="MergeStatus">How the server's attempt to merge it went.</param>
-/// <param name="SourceCommitId">
-/// The latest commit on the source branch that the server has seen, or <c>null</c>.
-/// </param>
 /// <param name="Reviewers">The reviewers.</param>
 /// <param name="AutoComplete">Whether it completes on its own once the conditions are met.</param>
 /// <param name="ClosedAt">When it was completed or abandoned, otherwise <c>null</c>.</param>
+/// <param name="SourceCommitId">
+/// The latest commit on the source branch that the server has seen, or <c>null</c>.
+/// </param>
 public sealed record PullRequestOverview(
     PullRequestSummary Summary,
     PullRequestStatus Status,
@@ -177,10 +177,10 @@ public enum PullRequestMergeStrategy
 /// <summary>How a pull request is to be completed.</summary>
 /// <param name="Strategy">How the changes are brought in.</param>
 /// <param name="DeleteSourceBranch">Whether the source branch is deleted afterwards.</param>
+/// <param name="TransitionWorkItems">Whether linked work items are moved to their next state.</param>
 /// <param name="MergeCommitMessage">
 /// The message on the commit, or <c>null</c> for the server's suggestion.
 /// </param>
-/// <param name="TransitionWorkItems">Whether linked work items are moved to their next state.</param>
 public sealed record PullRequestCompletion(
     PullRequestMergeStrategy Strategy,
     bool DeleteSourceBranch = false,
@@ -192,11 +192,11 @@ public sealed record PullRequestCompletion(
 /// </summary>
 /// <param name="Status">The new status, or <c>null</c> to leave it.</param>
 /// <param name="IsDraft">Draft or not.</param>
+/// <param name="Completion">How it is completed.</param>
 /// <param name="LastMergeSourceCommitId">
 /// The commit to be completed. Required by the server for <see cref="PullRequestStatus.Completed"/>, so that what is
 /// brought in is what someone has actually seen.
 /// </param>
-/// <param name="Completion">How it is completed.</param>
 /// <param name="AutoCompleteSetById">
 /// The person who turns on auto-complete. The id <see cref="Guid.Empty"/> turns it off.
 /// </param>
@@ -228,32 +228,47 @@ public interface IPullRequestClient
     bool IsConnected { get; }
 
     /// <summary>Open pull requests in the repo, newest first.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<IReadOnlyList<PullRequestSummary>>> GetOpenAsync(
         AzureDevOpsRemote remote,
         CancellationToken cancellationToken = default);
 
     /// <summary>
     /// The open pull request for a branch, or <see cref="ResultStatus.NotFound"/> when the branch
-    /// has none.
+    /// has none, and <see cref="ResultStatus.Invalid"/> when no branch is given.
     /// </summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="branch">The branch, with or without <c>refs/heads/</c>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestSummary>> FindForBranchAsync(
         AzureDevOpsRemote remote,
         string branch,
         CancellationToken cancellationToken = default);
 
     /// <summary>Creates a pull request and returns it as it was created.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequest">The pull request to create.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestSummary>> CreateAsync(
         AzureDevOpsRemote remote,
         NewPullRequest pullRequest,
         CancellationToken cancellationToken = default);
 
     /// <summary>The title and the description as they currently stand in Azure DevOps.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestContent>> GetContentAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
         CancellationToken cancellationToken = default);
 
     /// <summary>Writes a new title and description and returns the resulting pull request.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="content">The new title and description.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestSummary>> UpdateContentAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -261,6 +276,9 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>The numbers of the work items the pull request is linked to.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<IReadOnlyList<int>>> GetLinkedWorkItemIdsAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -270,6 +288,10 @@ public interface IPullRequestClient
     /// Links the pull request to a work item, so that it appears under <em>Development</em>
     /// in the work item, and the work item appears in the pull request.
     /// </summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="workItemId">The work item's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result> LinkWorkItemAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -289,6 +311,10 @@ public interface IPullRequestClient
     /// Links a branch to a work item, so that the branch appears under <em>Development</em>
     /// in the work item.
     /// </summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="branch">The branch, with or without <c>refs/heads/</c>.</param>
+    /// <param name="workItemId">The work item's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// The branch must exist in Azure DevOps. A branch that exists only locally can be linked,
     /// but the link leads nowhere, so the implementation refuses instead — with a
@@ -301,6 +327,9 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>The iteration and the changed files, which the comments are to attach to.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequest">The pull request, as the list gives it.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestDetails>> GetDetailsAsync(
         AzureDevOpsRemote remote,
         PullRequestSummary pullRequest,
@@ -329,6 +358,10 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>The threads on a pull request. The system's own messages are left out.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="iteration">The iteration, from <see cref="PullRequestDetails.Iteration"/>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<IReadOnlyList<PullRequestThread>>> GetThreadsAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -339,6 +372,12 @@ public interface IPullRequestClient
     /// Creates a thread. Without <paramref name="anchor"/> it becomes a general comment on
     /// the pull request instead of a comment on a line.
     /// </summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="iteration">The iteration, from <see cref="PullRequestDetails.Iteration"/>.</param>
+    /// <param name="text">The comment, as markdown.</param>
+    /// <param name="anchor">The file and lines the comment is attached to, or <c>null</c> for a comment on the overview tab.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestThread>> CreateThreadAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -348,6 +387,11 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Replies in a thread.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="threadId">The thread's number in the pull request.</param>
+    /// <param name="text">The reply, as markdown.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestComment>> ReplyAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -356,6 +400,11 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Sets the thread's status, for example <see cref="PullRequestThreadStatus.Fixed"/> when it has been addressed.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="threadId">The thread's number in the pull request.</param>
+    /// <param name="status">The new status; <see cref="PullRequestThreadStatus.Unknown"/> cannot be set.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result> SetThreadStatusAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -364,18 +413,28 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Pull requests in the repo, newest first.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="query">Which pull requests to list.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<IReadOnlyList<PullRequestOverview>>> ListAsync(
         AzureDevOpsRemote remote,
         PullRequestQuery query,
         CancellationToken cancellationToken = default);
 
     /// <summary>A pull request with status and reviewers, open or not.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestOverview>> GetOverviewAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
         CancellationToken cancellationToken = default);
 
     /// <summary>Changes status, draft or completion and returns the result.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="update">What to change; anything that is <c>null</c> is left as it is.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestOverview>> UpdateAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -383,11 +442,16 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>The person the token belongs to.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<AzureDevOpsIdentity>> GetCurrentUserAsync(
         AzureDevOpsRemote remote,
         CancellationToken cancellationToken = default);
 
     /// <summary>People and groups whose name or email matches the text.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="text">Part of a name or an email address.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<IReadOnlyList<AzureDevOpsIdentity>>> FindIdentitiesAsync(
         AzureDevOpsRemote remote,
         string text,
@@ -396,6 +460,12 @@ public interface IPullRequestClient
     /// <summary>
     /// Adds a reviewer, or changes the vote or the requirement for one who is already there.
     /// </summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="reviewerId">The reviewer's identity, from <see cref="AzureDevOpsIdentity.Id"/>.</param>
+    /// <param name="vote">The vote to set; <see cref="PullRequestVote.None"/> adds a reviewer without a vote.</param>
+    /// <param name="isRequired">Whether the vote is required for the pull request to be completed.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<PullRequestReviewer>> SetReviewerAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -405,6 +475,10 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Removes a reviewer.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="reviewerId">The reviewer's identity, from <see cref="AzureDevOpsIdentity.Id"/>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result> RemoveReviewerAsync(
         AzureDevOpsRemote remote,
         int pullRequestId,
@@ -412,6 +486,10 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Removes the link between a pull request and a work item.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="pullRequestId">The pull request's number.</param>
+    /// <param name="workItemId">The work item's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>True when there was a link to remove.</returns>
     Task<Result<bool>> UnlinkWorkItemAsync(
         AzureDevOpsRemote remote,
@@ -420,6 +498,10 @@ public interface IPullRequestClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Removes the link between a branch and a work item.</summary>
+    /// <param name="remote">The organization, project and repository.</param>
+    /// <param name="branch">The branch, with or without <c>refs/heads/</c>.</param>
+    /// <param name="workItemId">The work item's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>True when there was a link to remove.</returns>
     Task<Result<bool>> UnlinkBranchAsync(
         AzureDevOpsRemote remote,

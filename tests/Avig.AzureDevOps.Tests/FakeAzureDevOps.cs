@@ -25,6 +25,9 @@ public sealed class FakeAzureDevOps : HttpMessageHandler
     public IReadOnlyList<RecordedRequest> Requests => _requests;
 
     /// <summary>The response to the next request whose address contains <paramref name="pathFragment"/>.</summary>
+    /// <param name="pathFragment">Part of the address, for example <c>pullrequests</c>.</param>
+    /// <param name="json">The response body.</param>
+    /// <param name="status">The response's status code.</param>
     public void Respond(string pathFragment, string json, HttpStatusCode status = HttpStatusCode.OK) =>
         _responses[pathFragment] = (status, json);
 
@@ -32,10 +35,12 @@ public sealed class FakeAzureDevOps : HttpMessageHandler
     public HttpClient CreateClient() => new(this, disposeHandler: false);
 
     /// <summary>The last request whose address contains <paramref name="pathFragment"/>.</summary>
+    /// <param name="pathFragment">Part of the address, for example <c>threads/501</c>.</param>
+    /// <exception cref="InvalidOperationException">No such request was made; the message lists those that were.</exception>
     public RecordedRequest Last(string pathFragment) =>
         Requests.LastOrDefault(request => request.Uri.Contains(pathFragment, StringComparison.OrdinalIgnoreCase))
-        ?? throw new InvalidOperationException(
-            $"No request to \"{pathFragment}\". Got: {string.Join(", ", Requests.Select(request => request.Uri))}");
+            ?? throw new InvalidOperationException(
+                $"No request to \"{pathFragment}\". Got: {string.Join(", ", Requests.Select(request => request.Uri))}");
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -77,6 +82,10 @@ public sealed class FakeAzureDevOps : HttpMessageHandler
 }
 
 /// <summary>A request that the fake server received.</summary>
+/// <param name="Method">The HTTP verb.</param>
+/// <param name="Uri">The address, percent-encoded as it went on the wire.</param>
+/// <param name="Body">The body, or <c>null</c> when there was none.</param>
+/// <param name="Authorization">The Authorization header, or <c>null</c>.</param>
 public sealed record RecordedRequest(string Method, string Uri, string? Body, string? Authorization);
 
 /// <summary>A sign-in that always says yes, for tests that are not about it.</summary>

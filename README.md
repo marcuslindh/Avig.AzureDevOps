@@ -1,7 +1,7 @@
 # Avig.AzureDevOps
 
 Clients for the Azure DevOps REST API (`api-version=7.1`): pull requests, work items,
-builds and wiki. Used by AI Code Review and Splice.
+builds and wiki.
 
 - **Pull requests** — list, create, edit, complete and abandon; threads and replies,
   including comments anchored to a line; reviewers and votes; links to work items and
@@ -835,7 +835,7 @@ accordingly; a 429 is retried once after the requested wait.
 ```powershell
 dotnet build Avig.AzureDevOps.slnx
 dotnet test Avig.AzureDevOps.slnx
-./publish.ps1            # raises the version, tests, packs, verifies and copies to G:\LocalNugetRepo
+./publish.ps1            # tests, packs and checks the package; changes and copies nothing
 ```
 
 ## Releasing

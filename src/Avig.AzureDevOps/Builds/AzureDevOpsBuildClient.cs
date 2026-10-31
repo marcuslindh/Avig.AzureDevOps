@@ -13,51 +13,67 @@ namespace Avig.AzureDevOps.Builds;
 /// often started by a different pipeline than the one that touches the code being reviewed,
 /// and whoever is looking for why something did not go out wants to see both.
 /// </remarks>
-public sealed class AzureDevOpsBuildClient : IBuildClient
+/// <remarks>A client that sends its requests through <paramref name="httpClient"/>.</remarks>
+/// <param name="httpClient">The typed client from the factory, with User-Agent and timeout set.</param>
+/// <param name="credential">The sign-in every request is authorized with.</param>
+/// <param name="logger">The log.</param>
+public sealed class AzureDevOpsBuildClient(
+    HttpClient httpClient,
+    IAzureDevOpsCredential credential,
+    ILogger<AzureDevOpsBuildClient> logger) : IBuildClient
 {
     /// <summary>No more builds than this are fetched in one call.</summary>
     private const int MaxBuilds = 1000;
 
-    private readonly AzureDevOpsHttp _http;
-    private readonly IAzureDevOpsCredential _credential;
-    private readonly ILogger<AzureDevOpsBuildClient> _logger;
+    private readonly AzureDevOpsHttp _http = new AzureDevOpsHttp(httpClient, credential, logger);
+    private readonly IAzureDevOpsCredential _credential = credential;
+    private readonly ILogger<AzureDevOpsBuildClient> _logger = logger;
 
-    public AzureDevOpsBuildClient(
-        HttpClient httpClient,
-        IAzureDevOpsCredential credential,
-        ILogger<AzureDevOpsBuildClient> logger)
-    {
-        _credential = credential;
-        _logger = logger;
-        _http = new AzureDevOpsHttp(httpClient, credential, logger);
-    }
+    /// <summary>The message when no project is given.</summary>
+    private const string NoProject =
+        "No project was given. Pass the organization and the project, for example from AzureDevOpsRemote.TryParse.";
 
+    /// <summary>Indicates whether the tool has a sign-in to work with.</summary>
     public bool IsConnected => _credential.IsConfigured;
 
-    public Task<Result<IReadOnlyList<BuildSummary>>> GetAsync(
+    /// <summary>The builds in the project, most recently queued first.</summary>
+    /// <param name="remote">The project the builds belong to.</param>
+    /// <param name="limit">At most this many are fetched.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    public async Task<Result<IReadOnlyList<BuildSummary>>> GetAsync(
         AzureDevOpsRemote remote,
         int limit = 100,
-        CancellationToken cancellationToken = default) =>
-        AzureDevOpsCall.RunAsync<IReadOnlyList<BuildSummary>>(async () =>
+        CancellationToken cancellationToken = default)
+    {
+        if (remote is null)
         {
-            ArgumentNullException.ThrowIfNull(remote);
+            return Result<IReadOnlyList<BuildSummary>>.Failure(NoProject, ResultStatus.Invalid);
+        }
 
-            int top = Math.Clamp(limit, 1, MaxBuilds);
+        int top = Math.Clamp(limit, 1, MaxBuilds);
 
-            ListResponse<BuildDto> response = await _http.GetAsync<ListResponse<BuildDto>>(
-                    AzureDevOpsHttp.ProjectRoute(
-                        remote,
-                        $"build/builds?$top={top.ToString(CultureInfo.InvariantCulture)}"
-                        + "&queryOrder=queueTimeDescending"),
-                    "the project's builds",
-                    cancellationToken)
-                .ConfigureAwait(false);
+        Result<ListResponse<BuildDto>> response = await _http.GetAsync<ListResponse<BuildDto>>(
+            AzureDevOpsHttp.ProjectRoute(
+                remote,
+                $"build/builds?$top={top.ToString(CultureInfo.InvariantCulture)}"
+                    + "&queryOrder=queueTimeDescending"),
+            "the project's builds",
+            cancellationToken)
+            .ConfigureAwait(false);
 
-            Log.BuildsLoaded(_logger, response.Value.Count, remote.Project);
+        if (!response.IsSuccess(out ListResponse<BuildDto>? builds))
+        {
+            return response.WithoutValue().AsFailure<IReadOnlyList<BuildSummary>>();
+        }
 
-            return [.. response.Value.Select(dto => ToSummary(remote, dto))];
-        }, cancellationToken);
+        Log.BuildsLoaded(_logger, builds.Value.Count, remote.Project);
 
+        return builds.Value.Select(dto => ToSummary(remote, dto)).ToList();
+    }
+
+    /// <summary>A build from the API's answer, with its address in the web interface.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="dto">The item from the API.</param>
     private static BuildSummary ToSummary(AzureDevOpsRemote remote, BuildDto dto) => new(
         dto.Id,
         dto.BuildNumber ?? dto.Id.ToString(CultureInfo.InvariantCulture),
@@ -74,11 +90,13 @@ public sealed class AzureDevOpsBuildClient : IBuildClient
         new Uri(
             remote.ApiBaseUri,
             $"{Uri.EscapeDataString(remote.Project)}/_build/results"
-            + $"?buildId={dto.Id.ToString(CultureInfo.InvariantCulture)}"));
+                + $"?buildId={dto.Id.ToString(CultureInfo.InvariantCulture)}"));
 
     /// <summary>
     /// What status and result mean together.
     /// </summary>
+    /// <param name="status">The API's status, for example <c>inProgress</c>, or <c>null</c>.</param>
+    /// <param name="result">The API's result, or <c>null</c> while the build runs.</param>
     /// <remarks>
     /// A build that is running has no result at all, and one that is finished always has one.
     /// Reading only one of the fields therefore gives the wrong answer in half the cases.
@@ -100,6 +118,8 @@ public sealed class AzureDevOpsBuildClient : IBuildClient
         };
     }
 
+    /// <summary>The branch without <c>refs/heads/</c>; other references are left as they are.</summary>
+    /// <param name="reference">The reference, for example <c>refs/heads/main</c>.</param>
     private static string ShortBranch(string? reference)
     {
         if (string.IsNullOrEmpty(reference))

@@ -23,6 +23,8 @@ internal static class TestResults
     }
 
     /// <summary>The failure's message and status; fails the test if the call succeeded.</summary>
+    /// <typeparam name="T">The value the result would have carried.</typeparam>
+    /// <param name="result">The result that should be a failure.</param>
     public static (string Error, ResultStatus Status) Failed<T>(this Result<T> result)
     {
         Assert.True(result.IsFailure(out string? error, out ResultStatus status), "The call should have failed.");

@@ -16,11 +16,11 @@ public static class ServiceCollectionExtensions
     /// <paramref name="token"/> returns.
     /// </summary>
     /// <param name="services">The services.</param>
+    /// <param name="configure">The settings, or <see langword="null"/> for the defaults.</param>
     /// <param name="token">
     /// Returns the token, or <see langword="null"/> when there is none. Called on every
     /// request; see <see cref="PersonalAccessTokenCredential"/>.
     /// </param>
-    /// <param name="configure">The settings, or <see langword="null"/> for the defaults.</param>
     /// <returns>The same services, for chaining.</returns>
     public static IServiceCollection AddAvigAzureDevOps(
         this IServiceCollection services,
@@ -37,12 +37,12 @@ public static class ServiceCollectionExtensions
     /// <paramref name="token"/> returns, with access to the application's services.
     /// </summary>
     /// <param name="services">The services.</param>
+    /// <param name="configure">The settings, or <see langword="null"/> for the defaults.</param>
     /// <param name="token">
     /// Returns the token, or <see langword="null"/> when there is none — typically by asking
     /// the application's own token store. Called on every request with the root provider,
     /// so only singletons should be resolved from it.
     /// </param>
-    /// <param name="configure">The settings, or <see langword="null"/> for the defaults.</param>
     /// <returns>The same services, for chaining.</returns>
     public static IServiceCollection AddAvigAzureDevOps(
         this IServiceCollection services,
@@ -100,6 +100,9 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>Sets User-Agent and the timeout from <see cref="AzureDevOpsOptions"/> on a client.</summary>
+    /// <param name="provider">The services, for the options.</param>
+    /// <param name="client">The client to configure.</param>
     private static void Configure(IServiceProvider provider, HttpClient client)
     {
         AzureDevOpsOptions options = provider.GetRequiredService<IOptions<AzureDevOpsOptions>>().Value;

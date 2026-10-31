@@ -73,13 +73,15 @@ public interface IWikiClient
     bool IsConnected { get; }
 
     /// <summary>Wikis in the project.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<IReadOnlyList<WikiSummary>>> GetWikisAsync(
         AzureDevOpsRemote remote,
         CancellationToken cancellationToken = default);
 
     /// <summary>The pages under a path, with all levels below it.</summary>
     /// <param name="remote">The project.</param>
-    /// <param name="wikiId">The wiki's id or name.</param>
+    /// <param name="wikiId">The wiki's id or name, from <see cref="WikiSummary.Id"/>.</param>
     /// <param name="path">The path the tree starts at; <c>/</c> for the whole wiki.</param>
     /// <param name="cancellationToken">Cancellation.</param>
     /// <returns>The page at the path with everything under it, or <see cref="ResultStatus.NotFound"/>.</returns>
@@ -90,6 +92,10 @@ public interface IWikiClient
         CancellationToken cancellationToken = default);
 
     /// <summary>A page with text, by path.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="wikiId">The wiki's id or name, from <see cref="WikiSummary.Id"/>.</param>
+    /// <param name="path">The page's path, for example <c>/Development/Getting started</c>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>The page, or <see cref="ResultStatus.NotFound"/> when it does not exist.</returns>
     Task<Result<WikiPage>> GetPageAsync(
         AzureDevOpsRemote remote,
@@ -98,6 +104,10 @@ public interface IWikiClient
         CancellationToken cancellationToken = default);
 
     /// <summary>A page with text, by number.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="wikiId">The wiki's id or name, from <see cref="WikiSummary.Id"/>.</param>
+    /// <param name="id">The page's number, from its address or <see cref="WikiPage.Id"/>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <returns>The page, or <see cref="ResultStatus.NotFound"/> when it does not exist.</returns>
     Task<Result<WikiPage>> GetPageByIdAsync(
         AzureDevOpsRemote remote,

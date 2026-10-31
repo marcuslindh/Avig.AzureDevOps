@@ -12,7 +12,14 @@ namespace Avig.AzureDevOps.Wiki;
 /// The pages are reached by path or by number. Search goes to a separate service,
 /// <c>almsearch.dev.azure.com</c>, and not to the project's address.
 /// </remarks>
-public sealed class AzureDevOpsWikiClient : IWikiClient
+/// <remarks>A client that sends its requests through <paramref name="httpClient"/>.</remarks>
+/// <param name="httpClient">The typed client from the factory, with User-Agent and timeout set.</param>
+/// <param name="credential">The sign-in every request is authorized with.</param>
+/// <param name="logger">The log.</param>
+public sealed class AzureDevOpsWikiClient(
+    HttpClient httpClient,
+    IAzureDevOpsCredential credential,
+    ILogger<AzureDevOpsWikiClient> logger) : IWikiClient
 {
     /// <summary>The wiki's root, and what every page's path starts with.</summary>
     private const string RootPath = "/";
@@ -23,154 +30,239 @@ public sealed class AzureDevOpsWikiClient : IWikiClient
     /// <summary>No more search hits than this are fetched in one call.</summary>
     private const int MaxSearchHits = 1000;
 
-    private readonly AzureDevOpsHttp _http;
-    private readonly IAzureDevOpsCredential _credential;
-    private readonly ILogger<AzureDevOpsWikiClient> _logger;
+    /// <summary>The message when no project is given.</summary>
+    private const string NoProject =
+        "No project was given. Pass the organization and the project, for example from AzureDevOpsRemote.TryParse.";
 
-    public AzureDevOpsWikiClient(
-        HttpClient httpClient,
-        IAzureDevOpsCredential credential,
-        ILogger<AzureDevOpsWikiClient> logger)
-    {
-        _credential = credential;
-        _logger = logger;
-        _http = new AzureDevOpsHttp(httpClient, credential, logger);
-    }
+    /// <summary>The message when no wiki is given.</summary>
+    private const string NoWiki =
+        "No wiki was given. Pass the wiki's id or name, for example WikiSummary.Id from GetWikisAsync.";
 
+    private readonly AzureDevOpsHttp _http = new AzureDevOpsHttp(httpClient, credential, logger);
+    private readonly IAzureDevOpsCredential _credential = credential;
+    private readonly ILogger<AzureDevOpsWikiClient> _logger = logger;
+
+    /// <summary>Whether the tool has a sign-in to work with.</summary>
     public bool IsConnected => _credential.IsConfigured;
 
-    public Task<Result<IReadOnlyList<WikiSummary>>> GetWikisAsync(
+    /// <summary>Wikis in the project.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    public async Task<Result<IReadOnlyList<WikiSummary>>> GetWikisAsync(
         AzureDevOpsRemote remote,
-        CancellationToken cancellationToken = default) =>
-        AzureDevOpsCall.RunAsync<IReadOnlyList<WikiSummary>>(async () =>
+        CancellationToken cancellationToken = default)
+    {
+        if (remote is null)
         {
-            ArgumentNullException.ThrowIfNull(remote);
+            return Result<IReadOnlyList<WikiSummary>>.Failure(NoProject, ResultStatus.Invalid);
+        }
 
-            ListResponse<WikiDto> response = await _http.GetAsync<ListResponse<WikiDto>>(
-                    AzureDevOpsHttp.ProjectRoute(remote, "wiki/wikis"),
-                    "the project's wikis",
-                    cancellationToken)
-                .ConfigureAwait(false);
+        Result<ListResponse<WikiDto>> response = await _http.GetAsync<ListResponse<WikiDto>>(
+            AzureDevOpsHttp.ProjectRoute(remote, "wiki/wikis"),
+            "the project's wikis",
+            cancellationToken)
+            .ConfigureAwait(false);
 
-            return
-            [
-                .. response.Value.Select(dto => new WikiSummary(
-                    dto.Id ?? dto.Name ?? string.Empty,
-                    dto.Name ?? dto.Id ?? string.Empty,
-                    string.Equals(dto.Type, "projectWiki", StringComparison.OrdinalIgnoreCase))),
-            ];
-        }, cancellationToken);
-
-    public Task<Result<WikiPageNode>> GetPageTreeAsync(
-        AzureDevOpsRemote remote,
-        string wikiId,
-        string path,
-        CancellationToken cancellationToken = default) =>
-        AzureDevOpsCall.RunResultAsync<WikiPageNode>(async () =>
+        if (!response.IsSuccess(out ListResponse<WikiDto>? wikis))
         {
-            ArgumentNullException.ThrowIfNull(remote);
-            ArgumentException.ThrowIfNullOrWhiteSpace(wikiId);
-            ArgumentNullException.ThrowIfNull(path);
+            return response.WithoutValue().AsFailure<IReadOnlyList<WikiSummary>>();
+        }
 
-            Result<WikiPageDto> page = await GetDtoAsync(
-                    remote,
-                    PagesRoute(wikiId, $"pages?path={Uri.EscapeDataString(path)}&recursionLevel=full"),
-                    path,
-                    cancellationToken)
-                .ConfigureAwait(false);
+        return wikis.Value
+            .Select(dto => new WikiSummary(
+                dto.Id ?? dto.Name ?? string.Empty,
+                dto.Name ?? dto.Id ?? string.Empty,
+                string.Equals(dto.Type, "projectWiki", StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+    }
 
-            if (page.IsSuccess(out WikiPageDto? dto))
-            {
-                return ToNode(dto);
-            }
-
-            return Result<WikiPageNode>.NotFound(page.Error ?? $"The wiki page {path} does not exist.");
-        }, cancellationToken);
-
-    public Task<Result<WikiPage>> GetPageAsync(
+    /// <summary>The pages under a path, with all levels below it.</summary>
+    /// <param name="remote">The project.</param>
+    /// <param name="wikiId">The wiki's id or name, from <see cref="WikiSummary.Id"/>.</param>
+    /// <param name="path">The path the tree starts at; <c>/</c> for the whole wiki.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <returns>The page at the path with everything under it, or <see cref="ResultStatus.NotFound"/>.</returns>
+    public async Task<Result<WikiPageNode>> GetPageTreeAsync(
         AzureDevOpsRemote remote,
         string wikiId,
         string path,
-        CancellationToken cancellationToken = default) =>
-        AzureDevOpsCall.RunResultAsync<WikiPage>(async () =>
+        CancellationToken cancellationToken = default)
+    {
+        Result arguments = Check(remote, wikiId, path);
+
+        if (arguments.IsFailure(out _, out _))
         {
-            ArgumentNullException.ThrowIfNull(remote);
-            ArgumentException.ThrowIfNullOrWhiteSpace(wikiId);
-            ArgumentNullException.ThrowIfNull(path);
+            return arguments.AsFailure<WikiPageNode>();
+        }
 
-            return await ReadPageAsync(
-                    remote,
-                    wikiId,
-                    PagesRoute(wikiId, $"pages?path={Uri.EscapeDataString(path)}&includeContent=true&recursionLevel=oneLevel"),
-                    path,
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }, cancellationToken);
+        Result<WikiPageDto> page = await GetDtoAsync(
+            remote,
+            PagesRoute(wikiId, $"pages?path={Uri.EscapeDataString(path)}&recursionLevel=full"),
+            path,
+            cancellationToken)
+            .ConfigureAwait(false);
 
-    public Task<Result<WikiPage>> GetPageByIdAsync(
+        if (!page.IsSuccess(out WikiPageDto? dto))
+        {
+            return page.WithoutValue().AsFailure<WikiPageNode>();
+        }
+
+        return ToNode(dto);
+    }
+
+    /// <summary>A page with text, by path.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="wikiId">The wiki's id or name, from <see cref="WikiSummary.Id"/>.</param>
+    /// <param name="path">The page's path, for example <c>/Development/Getting started</c>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The page, or <see cref="ResultStatus.NotFound"/> when it does not exist.</returns>
+    public async Task<Result<WikiPage>> GetPageAsync(
+        AzureDevOpsRemote remote,
+        string wikiId,
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        Result arguments = Check(remote, wikiId, path);
+
+        if (arguments.IsFailure(out _, out _))
+        {
+            return arguments.AsFailure<WikiPage>();
+        }
+
+        return await ReadPageAsync(
+            remote,
+            wikiId,
+            PagesRoute(wikiId, $"pages?path={Uri.EscapeDataString(path)}&includeContent=true&recursionLevel=oneLevel"),
+            path,
+            cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>A page with text, by number.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="wikiId">The wiki's id or name, from <see cref="WikiSummary.Id"/>.</param>
+    /// <param name="id">The page's number, from its address or <see cref="WikiPage.Id"/>.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <returns>The page, or <see cref="ResultStatus.NotFound"/> when it does not exist.</returns>
+    public async Task<Result<WikiPage>> GetPageByIdAsync(
         AzureDevOpsRemote remote,
         string wikiId,
         int id,
-        CancellationToken cancellationToken = default) =>
-        AzureDevOpsCall.RunResultAsync<WikiPage>(async () =>
+        CancellationToken cancellationToken = default)
+    {
+        Result arguments = Check(remote, wikiId, RootPath);
+
+        if (arguments.IsFailure(out _, out _))
         {
-            ArgumentNullException.ThrowIfNull(remote);
-            ArgumentException.ThrowIfNullOrWhiteSpace(wikiId);
+            return arguments.AsFailure<WikiPage>();
+        }
 
-            string number = id.ToString(CultureInfo.InvariantCulture);
+        string number = id.ToString(CultureInfo.InvariantCulture);
 
-            return await ReadPageAsync(
-                    remote,
-                    wikiId,
-                    PagesRoute(wikiId, $"pages/{number}?includeContent=true&recursionLevel=oneLevel"),
-                    $"with id {number}",
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }, cancellationToken);
+        return await ReadPageAsync(
+            remote,
+            wikiId,
+            PagesRoute(wikiId, $"pages/{number}?includeContent=true&recursionLevel=oneLevel"),
+            $"with id {number}",
+            cancellationToken)
+            .ConfigureAwait(false);
+    }
 
-    public Task<Result<IReadOnlyList<WikiSearchHit>>> SearchAsync(
+    /// <summary>Searches the project's wikis.</summary>
+    /// <param name="remote">The project.</param>
+    /// <param name="text">What is searched for.</param>
+    /// <param name="limit">At most this many hits.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    public async Task<Result<IReadOnlyList<WikiSearchHit>>> SearchAsync(
         AzureDevOpsRemote remote,
         string text,
         int limit = 25,
-        CancellationToken cancellationToken = default) =>
-        AzureDevOpsCall.RunAsync<IReadOnlyList<WikiSearchHit>>(async () =>
+        CancellationToken cancellationToken = default)
+    {
+        if (remote is null)
         {
-            ArgumentNullException.ThrowIfNull(remote);
-            ArgumentException.ThrowIfNullOrWhiteSpace(text);
+            return Result<IReadOnlyList<WikiSearchHit>>.Failure(NoProject, ResultStatus.Invalid);
+        }
 
-            // Search has its own host. The project is in both the address and the filter;
-            // without the filter it searches the whole organization.
-            Uri route = new(
-                $"https://almsearch.dev.azure.com/{Uri.EscapeDataString(remote.Organization)}"
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return Result<IReadOnlyList<WikiSearchHit>>.Failure(
+                "No search text was given. Pass a word or a phrase to look for in the wiki.",
+                ResultStatus.Invalid);
+        }
+
+        // Search has its own host. The project is in both the address and the filter;
+        // without the filter it searches the whole organization.
+        Uri route = new(
+            $"https://almsearch.dev.azure.com/{Uri.EscapeDataString(remote.Organization)}"
                 + $"/{Uri.EscapeDataString(remote.Project)}/_apis/search/wikisearchresults"
                 + $"?api-version={AzureDevOpsJson.ApiVersion}");
 
-            WikiSearchResponseDto response = await _http.PostAsync<WikiSearchRequestDto, WikiSearchResponseDto>(
-                    route,
-                    new WikiSearchRequestDto
-                    {
-                        SearchText = text,
-                        Top = Math.Clamp(limit, 1, MaxSearchHits),
-                        Filters = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
-                        {
-                            ["Project"] = [remote.Project],
-                        },
-                    },
-                    "the wiki search",
-                    cancellationToken)
-                .ConfigureAwait(false);
+        Result<WikiSearchResponseDto> response = await _http.PostAsync<WikiSearchRequestDto, WikiSearchResponseDto>(
+            route,
+            new WikiSearchRequestDto
+            {
+                SearchText = text,
+                Top = Math.Clamp(limit, 1, MaxSearchHits),
+                Filters = new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+                {
+                    ["Project"] = [remote.Project],
+                },
+            },
+            "the wiki search",
+            cancellationToken)
+            .ConfigureAwait(false);
 
-            Log.WikiSearched(_logger, response.Results.Count, remote.Project);
+        if (!response.IsSuccess(out WikiSearchResponseDto? found))
+        {
+            return response.WithoutValue().AsFailure<IReadOnlyList<WikiSearchHit>>();
+        }
 
-            return
-            [
-                .. response.Results.Select(result => new WikiSearchHit(
-                    result.Wiki?.Name ?? string.Empty,
-                    PathFromGitItem(result.Path ?? result.FileName ?? string.Empty),
-                    [.. result.Hits.SelectMany(hit => hit.Highlights).Select(Highlight).Distinct(StringComparer.Ordinal)])),
-            ];
-        }, cancellationToken);
+        Log.WikiSearched(_logger, found.Results.Count, remote.Project);
 
+        return found.Results
+            .Select(result => new WikiSearchHit(
+                result.Wiki?.Name ?? string.Empty,
+                PathFromGitItem(result.Path ?? result.FileName ?? string.Empty),
+                [.. result.Hits.SelectMany(hit => hit.Highlights).Select(Highlight).Distinct(StringComparer.Ordinal)]))
+            .ToList();
+    }
+
+    /// <summary>The arguments every page lookup needs: a project, a wiki and a path.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="wikiId">The wiki's id or name.</param>
+    /// <param name="path">The page's path.</param>
+    /// <returns>Success, or <see cref="ResultStatus.Invalid"/> with what is missing.</returns>
+    private static Result Check(AzureDevOpsRemote? remote, string? wikiId, string? path)
+    {
+        if (remote is null)
+        {
+            return Result.Failure(NoProject, ResultStatus.Invalid);
+        }
+
+        if (string.IsNullOrWhiteSpace(wikiId))
+        {
+            return Result.Failure(NoWiki, ResultStatus.Invalid);
+        }
+
+        if (path is null)
+        {
+            return Result.Failure(
+                "No page path was given. Pass the page's path, for example /Development/Getting started, or / for the root.",
+                ResultStatus.Invalid);
+        }
+
+        return Result.Success();
+    }
+
+    /// <summary>
+    /// A page with its content, or <see cref="ResultStatus.NotFound"/> when it does not exist.
+    /// </summary>
+    /// <param name="remote">The project.</param>
+    /// <param name="wikiId">The wiki the page is in.</param>
+    /// <param name="route">The path after <c>_apis/</c> that asks for the page.</param>
+    /// <param name="what">How the page is named in the messages: its path, or <c>with id 17</c>.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
     private async Task<Result<WikiPage>> ReadPageAsync(
         AzureDevOpsRemote remote,
         string wikiId,
@@ -182,7 +274,7 @@ public sealed class AzureDevOpsWikiClient : IWikiClient
 
         if (!page.IsSuccess(out WikiPageDto? dto))
         {
-            return Result<WikiPage>.NotFound(page.Error ?? $"The wiki page {what} does not exist.");
+            return page.WithoutValue().AsFailure<WikiPage>();
         }
 
         Log.WikiPageLoaded(_logger, dto.Path ?? what, wikiId);
@@ -202,10 +294,14 @@ public sealed class AzureDevOpsWikiClient : IWikiClient
     /// <summary>
     /// The page, or <see cref="ResultStatus.NotFound"/> when the server says it does not exist.
     /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="relative">The path after <c>_apis/</c>, with any query string.</param>
+    /// <param name="what">The page's path, or <c>with id 17</c>, for the messages.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// A page that does not exist is an answer and not an error: whoever wrote the path from
     /// memory should be told so, and whoever copied an address can be tried with another form.
-    /// Everything else — sign-in, network — fails the call as usual.
+    /// Everything else — sign-in, network — is passed on with its own message and status.
     /// </remarks>
     private async Task<Result<WikiPageDto>> GetDtoAsync(
         AzureDevOpsRemote remote,
@@ -213,24 +309,28 @@ public sealed class AzureDevOpsWikiClient : IWikiClient
         string what,
         CancellationToken cancellationToken)
     {
-        try
-        {
-            return await _http.GetAsync<WikiPageDto>(
-                    AzureDevOpsHttp.ProjectRoute(remote, relative),
-                    $"the wiki page {what}",
-                    cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (AzureDevOpsException exception) when (exception.IsNotFound)
+        Result<WikiPageDto> page = await _http.GetAsync<WikiPageDto>(
+            AzureDevOpsHttp.ProjectRoute(remote, relative),
+            $"the wiki page {what}",
+            cancellationToken)
+            .ConfigureAwait(false);
+
+        if (page.Status == ResultStatus.NotFound)
         {
             return Result<WikiPageDto>.NotFound($"The wiki page {what} does not exist.");
         }
+
+        return page;
     }
 
     /// <summary>The path after <c>_apis/</c> for a wiki's pages.</summary>
+    /// <param name="wikiId">The wiki's id or name, from <see cref="WikiSummary.Id"/>.</param>
+    /// <param name="relative">What follows the wiki in the address: <c>pages?path=…</c>.</param>
     private static string PagesRoute(string wikiId, string relative) =>
         $"wiki/wikis/{Uri.EscapeDataString(wikiId)}/{relative}";
 
+    /// <summary>A page and the pages under it, in the order the wiki shows them.</summary>
+    /// <param name="dto">The page from the API.</param>
     private static WikiPageNode ToNode(WikiPageDto dto) => new(
         dto.Path ?? RootPath,
         dto.Id,
@@ -239,6 +339,7 @@ public sealed class AzureDevOpsWikiClient : IWikiClient
     /// <summary>
     /// The page's path from the file's path in the wiki's repo.
     /// </summary>
+    /// <param name="gitPath">The file's path in the wiki's repo, for example <c>/Development/Getting-started.md</c>.</param>
     /// <remarks>
     /// Search returns the file — <c>/Utveckling/Kom-igång.md</c> — and not the page.
     /// Spaces appear there as hyphens and hyphens as <c>%2D</c>, the same encoding as in the
@@ -266,6 +367,7 @@ public sealed class AzureDevOpsWikiClient : IWikiClient
     /// <summary>
     /// An excerpt with the hit marked as «hit» instead of with tags.
     /// </summary>
+    /// <param name="html">An excerpt from the search, with the hits inside <c>&lt;highlighthit&gt;</c> tags.</param>
     /// <remarks>
     /// Search marks a word in pieces around åäö — «beh»«ö»«righet» — so markings that sit
     /// edge to edge are merged into one.

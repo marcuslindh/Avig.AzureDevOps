@@ -94,7 +94,9 @@ public sealed class StatusTests
     {
         (AzureDevOpsPullRequestClient service, FakeAzureDevOps server) = PullRequests();
         server.Respond("iterations?", """{"count":1,"value":[{"id":1}]}""");
-        server.Respond("iterations/1/changes", """
+        server.Respond(
+            "iterations/1/changes",
+            """
             {"changeEntries":[
                 { "changeTrackingId": 1, "changeType": "edit, rename", "item": { "path": "/a.cs" } },
                 { "changeTrackingId": 2, "changeType": "delete", "item": { "path": "/b.cs" } },
@@ -117,7 +119,9 @@ public sealed class StatusTests
     public async Task ThreadStatusesAreRead()
     {
         (AzureDevOpsPullRequestClient service, FakeAzureDevOps server) = PullRequests();
-        server.Respond("threads", """
+        server.Respond(
+            "threads",
+            """
             {"count":3,"value":[
                 { "id": 1, "status": "byDesign", "comments": [ { "id": 1, "content": "a", "commentType": "text" } ] },
                 { "id": 2, "status": "wontFix", "comments": [ { "id": 1, "content": "b", "commentType": "text" } ] },
@@ -162,7 +166,9 @@ public sealed class StatusTests
     {
         FakeAzureDevOps server = new();
         AzureDevOpsBuildClient service = new(server.CreateClient(), new FakeCredential(), NullLogger<AzureDevOpsBuildClient>.Instance);
-        server.Respond("build/builds", """
+        server.Respond(
+            "build/builds",
+            """
             {"count":3,"value":[
               {"id":1,"status":"inProgress","queueTime":"2026-10-01T10:00:00Z"},
               {"id":2,"status":"completed","result":"succeeded","queueTime":"2026-10-01T09:00:00Z"},

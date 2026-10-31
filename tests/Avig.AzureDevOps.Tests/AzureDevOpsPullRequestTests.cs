@@ -70,6 +70,20 @@ public sealed class AzureDevOpsPullRequestTests
         Assert.Contains("searchCriteria.status=active", request.Uri, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task AnEmptyBranchIsAMistakeInTheCallAndNothingIsSent(string branch)
+    {
+        (AzureDevOpsPullRequestClient? service, FakeAzureDevOps? server) = Create();
+
+        (string error, ResultStatus status) = await service.FindForBranchAsync(Remote, branch).Failed();
+
+        Assert.Equal(ResultStatus.Invalid, status);
+        Assert.Contains("No branch name was given", error, StringComparison.Ordinal);
+        Assert.Empty(server.Requests);
+    }
+
     [Fact]
     public async Task BranchNameThatIsAlreadyAReferenceIsNotDoubled()
     {
@@ -91,7 +105,9 @@ public sealed class AzureDevOpsPullRequestTests
     {
         (AzureDevOpsPullRequestClient? service, FakeAzureDevOps? server) = Create();
 
-        server.Respond("pullrequests", """
+        server.Respond(
+            "pullrequests",
+            """
             {"count":1,"value":[{
                 "pullRequestId": 42,
                 "title": "Pagination in the user list",
@@ -120,7 +136,9 @@ public sealed class AzureDevOpsPullRequestTests
 
         server.Respond("iterations?", """{"count":3,"value":[{"id":1},{"id":2},{"id":3}]}""");
 
-        server.Respond("iterations/3/changes", """
+        server.Respond(
+            "iterations/3/changes",
+            """
             {"changeEntries":[
                 { "changeTrackingId": 7, "changeType": "edit", "item": { "path": "/src/Order.cs" } },
                 { "changeTrackingId": 9, "changeType": "add",  "item": { "path": "/src/New.cs" } }
@@ -143,7 +161,9 @@ public sealed class AzureDevOpsPullRequestTests
     {
         (AzureDevOpsPullRequestClient? service, FakeAzureDevOps? server) = Create();
 
-        server.Respond("threads", """
+        server.Respond(
+            "threads",
+            """
             {"count":3,"value":[
                 { "id": 1, "status": "active", "isDeleted": false,
                   "threadContext": { "filePath": "/src/Order.cs", "rightFileStart": { "line": 12, "offset": 1 } },
@@ -189,7 +209,9 @@ public sealed class AzureDevOpsPullRequestTests
     {
         (AzureDevOpsPullRequestClient? service, FakeAzureDevOps? server) = Create();
 
-        server.Respond("threads", """
+        server.Respond(
+            "threads",
+            """
             {"id":501,"status":"active","isDeleted":false,
              "threadContext":{"filePath":"/src/Order.cs","rightFileStart":{"line":12,"offset":1}},
              "comments":[{"id":1,"content":"Extract this","commentType":"text","isDeleted":false}]}
@@ -232,7 +254,9 @@ public sealed class AzureDevOpsPullRequestTests
     {
         (AzureDevOpsPullRequestClient? service, FakeAzureDevOps? server) = Create();
 
-        server.Respond("threads", """
+        server.Respond(
+            "threads",
+            """
             {"id":502,"status":"active","isDeleted":false,
              "comments":[{"id":1,"content":"About the whole","commentType":"text","isDeleted":false}]}
             """);
@@ -243,7 +267,7 @@ public sealed class AzureDevOpsPullRequestTests
 
         Assert.False(body.TryGetProperty("threadContext", out JsonElement context) && context.ValueKind is JsonValueKind.Object);
         Assert.False(body.TryGetProperty("pullRequestThreadContext", out JsonElement prContext)
-                     && prContext.ValueKind is JsonValueKind.Object);
+            && prContext.ValueKind is JsonValueKind.Object);
     }
 
     [Fact]
@@ -251,7 +275,9 @@ public sealed class AzureDevOpsPullRequestTests
     {
         (AzureDevOpsPullRequestClient? service, FakeAzureDevOps? server) = Create();
 
-        server.Respond("threads/501/comments", """
+        server.Respond(
+            "threads/501/comments",
+            """
             {"id":2,"content":"Fixed","commentType":"text","publishedDate":"2026-08-02T08:00:00Z"}
             """);
 
@@ -371,6 +397,7 @@ public sealed class AzureDevOpsPullRequestTests
     }
 
     /// <summary>A transport that fails the way the network does.</summary>
+    /// <param name="failure">What every request fails with.</param>
     private sealed class FailingHandler(Exception failure) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

@@ -17,6 +17,9 @@ internal static class ApiEnum
     /// The value the API sent, or <paramref name="fallback"/> when it is missing or one the
     /// package does not know — the API adds values, and a new one must not break a list.
     /// </summary>
+    /// <typeparam name="TEnum">The enum the name is read into.</typeparam>
+    /// <param name="value">The name the API sent, or <c>null</c>.</param>
+    /// <param name="fallback">The value for a missing or unknown name.</param>
     public static TEnum Parse<TEnum>(string? value, TEnum fallback)
         where TEnum : struct, Enum
     {
@@ -35,6 +38,8 @@ internal static class ApiEnum
     }
 
     /// <summary>The name the API wants for a value: <see cref="PullRequests.PullRequestStatus.Active"/> → <c>active</c>.</summary>
+    /// <typeparam name="TEnum">The enum the value belongs to.</typeparam>
+    /// <param name="value">The value to name.</param>
     public static string Name<TEnum>(TEnum value)
         where TEnum : struct, Enum =>
         JsonNamingPolicy.CamelCase.ConvertName(value.ToString());

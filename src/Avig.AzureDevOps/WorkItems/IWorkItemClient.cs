@@ -77,6 +77,8 @@ public sealed record WorkItemSummary(
     /// <summary>The area's name without the path leading to it.</summary>
     public string Area => LastSegment(AreaPath);
 
+    /// <summary>The last step of an area or iteration path: <c>Sprint 6</c> from <c>Webshop\Sprint 6</c>.</summary>
+    /// <param name="path">The path, with backslashes between the steps.</param>
     private static string LastSegment(string path)
     {
         if (string.IsNullOrEmpty(path))
@@ -162,11 +164,11 @@ public sealed record WorkItemQuery(bool IncludeClosed = false, int Limit = 500, 
 /// <param name="AreaPath">The area, or <c>null</c> for the project's default.</param>
 /// <param name="IterationPath">The sprint, or <c>null</c> for the project's default.</param>
 /// <param name="Tags">The tags.</param>
+/// <param name="StoryPoints">The estimate, or <c>null</c> for none.</param>
 /// <param name="ParentId">
 /// The number of the work item it is to sit under, or <c>null</c>. A task under a user
 /// story gets its story here.
 /// </param>
-/// <param name="StoryPoints">The estimate, or <c>null</c> for none.</param>
 public sealed record NewWorkItem(
     string Type,
     string Title,
@@ -183,15 +185,17 @@ public sealed record NewWorkItem(
 /// <summary>Changes to an existing work item.</summary>
 /// <param name="Title">The title.</param>
 /// <param name="Description">The description, as HTML.</param>
+/// <param name="AcceptanceCriteria">The criteria, as HTML, or <c>null</c>.</param>
+/// <param name="State">New state, or <c>null</c>.</param>
+/// <param name="IterationPath">The sprint's path, or <c>null</c>.</param>
+/// <param name="StoryPoints">New estimate, or <c>null</c>.</param>
 /// <param name="ReproSteps">
 /// The steps, as HTML, or <c>null</c> for a field that is not to be touched.
 /// </param>
-/// <param name="AcceptanceCriteria">The criteria, as HTML, or <c>null</c>.</param>
 /// <remarks>
 /// <c>null</c> means "leave as is" and not "clear". A field that the type does not have, or
 /// that could not be edited, must not be overwritten with nothing.
 /// </remarks>
-/// <param name="State">New state, or <c>null</c>.</param>
 /// <param name="AssignedTo">
 /// The person who is to have it, by name or email; empty text removes the assignment;
 /// <c>null</c> leaves it as is.
@@ -200,8 +204,6 @@ public sealed record NewWorkItem(
 /// The tags that are to apply, replacing the old ones, or <c>null</c>. An empty list removes
 /// all of them.
 /// </param>
-/// <param name="IterationPath">The sprint's path, or <c>null</c>.</param>
-/// <param name="StoryPoints">New estimate, or <c>null</c>.</param>
 /// <param name="ClearStoryPoints">
 /// Removes the estimate. A separate field, since <c>null</c> in
 /// <paramref name="StoryPoints"/> already means "leave as is".
@@ -268,6 +270,9 @@ public interface IWorkItemClient
     bool IsConnected { get; }
 
     /// <summary>Work items in the project, most recently changed first.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="query">Which work items to fetch.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<IReadOnlyList<WorkItemSummary>>> GetAsync(
         AzureDevOpsRemote remote,
         WorkItemQuery query,
@@ -276,6 +281,8 @@ public interface IWorkItemClient
     /// <summary>
     /// The sprint in progress, or <c>null</c> when there is none.
     /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// The question has to be asked of the server. Which sprint is the current one is
     /// decided by its dates and by which team owns it, and neither can be worked out from
@@ -292,6 +299,8 @@ public interface IWorkItemClient
     /// <summary>
     /// The board for the project's requirements — the one bugs and user stories are on.
     /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// The columns come from the board and not from the process's states. The two are not
     /// the same thing: a board can have <c>Blocked</c> and <c>Testing</c> as columns without
@@ -325,6 +334,9 @@ public interface IWorkItemClient
         CancellationToken cancellationToken = default);
 
     /// <summary>The description fields of a work item.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="id">The work item's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<WorkItemDetails>> GetDetailsAsync(
         AzureDevOpsRemote remote,
         int id,
@@ -351,6 +363,9 @@ public interface IWorkItemClient
     /// <summary>
     /// The work items directly under another one — a user story's tasks.
     /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="parentId">The number of the work item they sit under.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// Closed ones are included. A story whose tasks are done should show them as done, not
     /// as if they had never existed.
@@ -363,6 +378,9 @@ public interface IWorkItemClient
     /// <summary>
     /// The comments in the work item's discussion, oldest first.
     /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="id">The work item's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// Deleted comments are not included. The discussion is often where it says what was
     /// actually decided, when the description was written before anyone knew.
@@ -387,6 +405,9 @@ public interface IWorkItemClient
     /// <summary>
     /// The links from a work item to other work items.
     /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="id">The work item's number.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// Only links between work items. Links to branches, pull requests and commits are
     /// something else and are handled by <see cref="PullRequests.IPullRequestClient"/>.
@@ -424,6 +445,8 @@ public interface IWorkItemClient
     /// <summary>
     /// The tags that exist in the project, in alphabetical order.
     /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     /// <remarks>
     /// For suggesting the ones already in use. A tag spelled in a new way is a new tag, and
     /// a filter on the old one does not find it.
@@ -433,6 +456,9 @@ public interface IWorkItemClient
         CancellationToken cancellationToken = default);
 
     /// <summary>Creates a work item and returns what was created.</summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="item">The work item to create.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
     Task<Result<WorkItemSummary>> CreateAsync(
         AzureDevOpsRemote remote,
         NewWorkItem item,

@@ -111,6 +111,7 @@ public static partial class WorkItemMarkdown
     /// <summary>
     /// Indicates whether the text contains something that an edit would lose.
     /// </summary>
+    /// <param name="html">The HTML from a work item field or comment, or <c>null</c>.</param>
     /// <remarks>
     /// Images and tables. Whoever changes such a field gets a warning and can choose
     /// to open the work item in Azure DevOps instead.
@@ -136,6 +137,7 @@ public static partial class WorkItemMarkdown
     /// <summary>
     /// Indicates whether the text has a table, which cannot be shown as markdown.
     /// </summary>
+    /// <param name="html">The HTML from a work item field or comment, or <c>null</c>.</param>
     public static bool HasTables(string? html)
     {
         if (string.IsNullOrWhiteSpace(html))
@@ -157,6 +159,7 @@ public static partial class WorkItemMarkdown
     /// The images in the text, in the order they appear: the address as it appears in
     /// <c>src</c> and the description in <c>alt</c>.
     /// </summary>
+    /// <param name="html">The HTML from a work item field or comment, or <c>null</c>.</param>
     /// <remarks>Returns an empty list when the text cannot be gone through in time.</remarks>
     public static IReadOnlyList<MarkdownImage> Images(string? html)
     {
@@ -181,6 +184,7 @@ public static partial class WorkItemMarkdown
     }
 
     /// <summary>The text as markdown, ready to be edited.</summary>
+    /// <param name="html">The HTML from a work item field or comment, or <c>null</c>.</param>
     public static string FromHtml(string? html) => FromHtml(html, images: null);
 
     /// <summary>
@@ -213,6 +217,13 @@ public static partial class WorkItemMarkdown
         }
     }
 
+    /// <summary>The conversion itself, for HTML that is not empty.</summary>
+    /// <param name="html">The HTML, which is not empty.</param>
+    /// <param name="images">The downloaded images by address, or <c>null</c> to leave the images out.</param>
+    /// <remarks>
+    /// Code blocks and images are set aside first and put back last, so that nothing in between
+    /// reads their content as markdown.
+    /// </remarks>
     private static string Convert(string html, IReadOnlyDictionary<string, string>? images)
     {
         string text = Forbidden().Replace(html, string.Empty);
@@ -223,46 +234,50 @@ public static partial class WorkItemMarkdown
 
         if (images is not null)
         {
-            text = Image().Replace(text, match =>
-            {
-                MarkdownImage image = Attributes(match.Value);
-
-                if (image.Reference.Length == 0)
+            text = Image().Replace(
+                text,
+                match =>
                 {
-                    return string.Empty;
-                }
+                    MarkdownImage image = Attributes(match.Value);
 
-                // An image that has been downloaded points at the file, otherwise the address stays.
-                string target = image.Reference;
+                    if (image.Reference.Length == 0)
+                    {
+                        return string.Empty;
+                    }
 
-                if (images.TryGetValue(image.Reference, out string? local))
-                {
-                    target = local;
-                }
+                    // An image that has been downloaded points at the file, otherwise the address stays.
+                    string target = image.Reference;
 
-                string alt = image.Alt.Replace('[', '(').Replace(']', ')');
+                    if (images.TryGetValue(image.Reference, out string? local))
+                    {
+                        target = local;
+                    }
 
-                if (alt.Length == 0)
-                {
-                    alt = DefaultImageAlt;
-                }
+                    string alt = image.Alt.Replace('[', '(').Replace(']', ')');
 
-                pictures.Add($"![{alt}]({target})");
+                    if (alt.Length == 0)
+                    {
+                        alt = DefaultImageAlt;
+                    }
 
-                return $"{ImagePlaceholder}{pictures.Count - 1}{ImagePlaceholder}";
-            });
+                    pictures.Add($"![{alt}]({target})");
+
+                    return $"{ImagePlaceholder}{pictures.Count - 1}{ImagePlaceholder}";
+                });
         }
 
         // The code blocks are set aside first. Their content must not be touched by any of
         // what comes after — an asterisk in code is an asterisk, not italics.
         List<string> blocks = [];
 
-        text = CodeBlock().Replace(text, match =>
-        {
-            blocks.Add(Decode(AnyTag().Replace(match.Groups["code"].Value, string.Empty)).Trim('\n'));
+        text = CodeBlock().Replace(
+            text,
+            match =>
+            {
+                blocks.Add(Decode(AnyTag().Replace(match.Groups["code"].Value, string.Empty)).Trim('\n'));
 
-            return $"\n{Placeholder}{blocks.Count - 1}{Placeholder}\n";
-        });
+                return $"\n{Placeholder}{blocks.Count - 1}{Placeholder}\n";
+            });
 
         // List items are separated by a line break and not by a blank line: a blank line between
         // the items turns the markdown into loose paragraphs instead of a list.
@@ -271,8 +286,11 @@ public static partial class WorkItemMarkdown
 
         text = Heading().Replace(
             text,
-            match => "\n\n" + new string('#', int.Parse(match.Groups["level"].Value, CultureInfo.InvariantCulture))
-                            + " " + Inline(match.Groups["text"].Value) + "\n\n");
+            match => "\n\n"
+                + new string('#', int.Parse(match.Groups["level"].Value, CultureInfo.InvariantCulture))
+                + " "
+                + Inline(match.Groups["text"].Value)
+                + "\n\n");
 
         text = Quote().Replace(text, match => "\n\n" + Prefix(Inline(match.Groups["text"].Value), "> ") + "\n\n");
         text = Link().Replace(text, match => $"[{Inline(match.Groups["text"].Value)}]({match.Groups["url"].Value})");
@@ -301,6 +319,7 @@ public static partial class WorkItemMarkdown
     }
 
     /// <summary>The address and the description in an <c>img</c> tag, decoded.</summary>
+    /// <param name="tag">The <c>img</c> tag.</param>
     private static MarkdownImage Attributes(string tag)
     {
         string source = string.Empty;
@@ -324,6 +343,7 @@ public static partial class WorkItemMarkdown
     }
 
     /// <summary>The items in a numbered list, with their numbers.</summary>
+    /// <param name="items">The HTML inside the <c>ol</c> tag.</param>
     private static string Numbered(string items)
     {
         StringBuilder result = new();
@@ -343,6 +363,7 @@ public static partial class WorkItemMarkdown
     }
 
     /// <summary>Emphasis, code and line breaks inside a paragraph.</summary>
+    /// <param name="html">The HTML of a paragraph or a list item.</param>
     private static string Inline(string html)
     {
         string text = html;
@@ -376,6 +397,9 @@ public static partial class WorkItemMarkdown
     }
 
     /// <summary>Replaces a pair of tags with a markdown character.</summary>
+    /// <param name="html">The HTML from a work item field or comment, or <c>null</c>.</param>
+    /// <param name="tag">The tag's name, for example <c>strong</c>.</param>
+    /// <param name="marker">The markdown that replaces the tags, for example <c>**</c>.</param>
     private static string Replace(string html, string tag, string marker) => Regex.Replace(
         html,
         $@"<{tag}\b[^>]*>(?<text>.*?)</{tag}\s*>",
@@ -383,6 +407,9 @@ public static partial class WorkItemMarkdown
         RegexOptions.IgnoreCase | RegexOptions.Singleline,
         TimeSpan.FromSeconds(1));
 
+    /// <summary>Puts <paramref name="marker"/> before every line that has text, as a quote needs.</summary>
+    /// <param name="text">The text.</param>
+    /// <param name="marker">What each line starts with, for example <c>&gt; </c>.</param>
     private static string Prefix(string text, string marker) => string.Join(
         '\n',
         text.Split('\n').Select(line =>
@@ -395,11 +422,14 @@ public static partial class WorkItemMarkdown
             return marker + line.Trim();
         }));
 
+    /// <summary>The text with HTML entities decoded and non-breaking spaces made ordinary.</summary>
+    /// <param name="text">The text.</param>
     private static string Decode(string text) => WebUtility.HtmlDecode(text).Replace(' ', ' ');
 
     /// <summary>
     /// Collapses the whitespace the tags have left behind.
     /// </summary>
+    /// <param name="text">The text.</param>
     /// <remarks>
     /// At most one blank line in a row. Azure DevOps likes to write
     /// <c>&lt;p&gt;&lt;br&gt;&lt;/p&gt;</c> between paragraphs, and without this the text becomes

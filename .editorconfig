@@ -56,11 +56,17 @@ csharp_using_directive_placement = outside_namespace:warning
 dotnet_diagnostic.IDE0005.severity = error
 
 # CS1591: Missing XML comment for publicly visible member.
-# The documentation file is generated only so that IDE0005 works in the build, not
-# to be published. Requiring a comment on every public member would produce
-# empty repetitions of the name instead of the explanations that actually exist
-# where they are needed.
-dotnet_diagnostic.CS1591.severity = none
+# The documentation ships in the package on nuget.org and is what a consumer's editor shows,
+# so every public member has it. Off for the tests, see the end of the file.
+dotnet_diagnostic.CS1591.severity = error
+
+# RCS1141, RCS1142, RCS1140: every parameter has a <param>, every type parameter a
+# <typeparam>, and every exception a method throws an <exception>. A comment that names half
+# of what it describes is worse than one that says it is incomplete. Inside the package the
+# exceptions only travel to AzureDevOpsCall, but that is exactly what the next reader needs.
+dotnet_diagnostic.RCS1141.severity = error
+dotnet_diagnostic.RCS1142.severity = error
+dotnet_diagnostic.RCS1140.severity = error
 
 # ------------------------------------------------------------- the language
 csharp_style_namespace_declarations = file_scoped:warning
@@ -77,7 +83,7 @@ dotnet_diagnostic.IDE0008.severity = error
 # With the type written out on the left, "new Type()" is the same word twice. IDE0090
 # requires "new()" instead, so the ban on var does not cost readability.
 csharp_style_implicit_object_creation_when_type_is_apparent = true
-dotnet_diagnostic.IDE0090.severity = error
+dotnet_diagnostic.IDE0090.severity = none
 csharp_style_expression_bodied_methods = when_on_single_line:suggestion
 dotnet_style_prefer_collection_expression = true:suggestion
 
@@ -121,22 +127,15 @@ dotnet_naming_style.underscore_prefix.required_prefix = _
 dotnet_naming_style.underscore_prefix.capitalization = camel_case
 
 # ===========================================================================
-#  Rules waiting for a sweep
+#  Formatting
 # ===========================================================================
-#
-#  Measured, too many hits to be set to error today. Each one has its
-#  count written down: that is what makes it possible to raise the rule later without
-#  having to measure again first.
 
-# RCS0055: formatting of binary expressions.
-# Wants to put each operand of a multi-line && or || on its own line with the operator
-# first. Measured: 522 hits. Raise after a sweep — the rule is mechanical and has
-# a code fix, so the sweep is "dotnet format analyzers" plus a read-through.
-dotnet_diagnostic.RCS0055.severity = suggestion
-
+# RCS0055: formatting of binary expressions. Each operand of a multi-line && or || on its own
+# line with the operator first.
 # RCS0053: formatting of argument and parameter lists.
-# Measured: 232 hits. Same thing: mechanical, has a code fix.
-dotnet_diagnostic.RCS0053.severity = suggestion
+# Both have a code fix: dotnet format analyzers --diagnostics RCS0055 RCS0053.
+dotnet_diagnostic.RCS0055.severity = error
+dotnet_diagnostic.RCS0053.severity = error
 
 # MA0003: name the argument when the call cannot be read without the name.
 # Measured: 222 hits, most of them single-argument calls where the name adds
@@ -423,6 +422,10 @@ dotnet_diagnostic.AVIG0006.severity = error
 # ===========================================================================
 
 [tests/**/*.cs]
+
+# A test's name is the sentence that describes it, and the tests are not published: a comment
+# on every public test method would repeat the name.
+dotnet_diagnostic.CS1591.severity = none
 
 # A test has no synchronisation context to take into account.
 dotnet_diagnostic.MA0004.severity = none

@@ -35,7 +35,7 @@ public sealed record AzureDevOpsRemote(string Organization, string Project, stri
     /// <summary>The address of the repo in the web interface.</summary>
     public Uri WebUri => new(
         $"https://{Host}/{Uri.EscapeDataString(Organization)}"
-        + $"/{Uri.EscapeDataString(Project)}/{GitSegment}/{Uri.EscapeDataString(Repository)}");
+            + $"/{Uri.EscapeDataString(Project)}/{GitSegment}/{Uri.EscapeDataString(Repository)}");
 
     /// <summary>
     /// Parses a git remote and says whether it points to Azure DevOps.
@@ -53,12 +53,15 @@ public sealed record AzureDevOpsRemote(string Organization, string Project, stri
     /// Project names with spaces arrive URL-encoded and must be decoded, otherwise they do not
     /// match what the API wants.
     /// </remarks>
+    /// <param name="remoteUrl">The git remote address, in any of the four forms.</param>
+    /// <param name="remote">The organization and the project.</param>
+    /// <returns>Whether the address points at a repository in Azure DevOps.</returns>
     [SuppressMessage(
         "Design",
         "CA1054:URI-like parameters should not be strings",
         Justification =
             "The remote comes as text from git and can be the scp form git@ssh.dev.azure.com:v3/... "
-            + "which is not a valid Uri. Requiring a Uri would exclude half of the forms.")]
+                + "which is not a valid Uri. Requiring a Uri would exclude half of the forms.")]
     public static bool TryParse(string? remoteUrl, [NotNullWhen(true)] out AzureDevOpsRemote? remote)
     {
         remote = null;
@@ -73,6 +76,9 @@ public sealed record AzureDevOpsRemote(string Organization, string Project, stri
         return TryParseSsh(url, out remote) || TryParseHttps(url, out remote);
     }
 
+    /// <summary>The repository from an SSH address, <c>git@ssh.dev.azure.com:v3/org/project/repo</c>.</summary>
+    /// <param name="url">The trimmed address.</param>
+    /// <param name="remote">The repository, when the address is one.</param>
     private static bool TryParseSsh(string url, out AzureDevOpsRemote? remote)
     {
         remote = null;
@@ -94,6 +100,12 @@ public sealed record AzureDevOpsRemote(string Organization, string Project, stri
         return true;
     }
 
+    /// <summary>
+    /// The repository from an HTTPS address, on <c>dev.azure.com</c> or the older
+    /// <c>visualstudio.com</c>.
+    /// </summary>
+    /// <param name="url">The trimmed address.</param>
+    /// <param name="remote">The repository, when the address is one.</param>
     private static bool TryParseHttps(string url, out AzureDevOpsRemote? remote)
     {
         remote = null;
@@ -143,6 +155,7 @@ public sealed record AzureDevOpsRemote(string Organization, string Project, stri
     }
 
     /// <summary>Splits a path and decodes the segments.</summary>
+    /// <param name="path">The path, with the segments separated by slashes.</param>
     private static List<string> Split(string path) =>
     [
         .. path
@@ -152,6 +165,7 @@ public sealed record AzureDevOpsRemote(string Organization, string Project, stri
     ];
 
     /// <summary>The repo without <c>.git</c>, which a clone address often has and the API does not want.</summary>
+    /// <param name="segment">The repository's name from the address.</param>
     private static string WithoutGitSuffix(string segment)
     {
         if (segment.EndsWith(GitSuffix, StringComparison.OrdinalIgnoreCase))
