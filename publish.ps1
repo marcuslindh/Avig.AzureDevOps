@@ -96,7 +96,9 @@ if ($NoBump) {
 
 # A package that is already in the feed must never be replaced under the same number: whoever
 # has cached it keeps their copy and runs different code from whoever fetches it fresh.
-$existing = Join-Path $Feed "$name.$version.nupkg"
+# Path.Combine and not Join-Path: Join-Path fails on a drive that does not exist, and a GitHub
+# runner has no G:.
+$existing = [System.IO.Path]::Combine($Feed, "$name.$version.nupkg")
 if (-not $SkipFeed -and (Test-Path $existing)) {
     Write-Host "      ERROR: $name $version already exists in the feed." -ForegroundColor Red
     Write-Host "             Raise <Version> instead of overwriting it." -ForegroundColor Red
