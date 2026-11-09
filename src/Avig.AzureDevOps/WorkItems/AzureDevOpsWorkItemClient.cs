@@ -109,6 +109,9 @@ public sealed class AzureDevOpsWorkItemClient(
     /// <summary>The tag list exists only as a preview version.</summary>
     private const string TagsApiVersion = "7.1-preview.1";
 
+    /// <summary>The message when no work item type is given.</summary>
+    private const string NoType = "No work item type was given. Pass the type's name, for example Bug or User Story.";
+
     /// <summary>
     /// The boards, in the order they are offered.
     /// </summary>
@@ -729,6 +732,141 @@ public sealed class AzureDevOpsWorkItemClient(
                 .Where(name => name.Length > 0)
                 .Order(StringComparer.CurrentCultureIgnoreCase),
         ]);
+    }
+
+    /// <summary>
+    /// The states a work item type can be in, in the order the process defines them.
+    /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="type">The type's name, as the process spells it: <c>Bug</c>, <c>User Story</c>, <c>Task</c>…</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <remarks>
+    /// For offering the states a work item can be moved to. The states differ between types
+    /// and processes — a Task in Agile has no <c>Resolved</c> — so they are read, not guessed.
+    /// </remarks>
+    public async Task<Result<IReadOnlyList<WorkItemState>>> GetStatesAsync(
+        AzureDevOpsRemote remote,
+        string type,
+        CancellationToken cancellationToken = default)
+    {
+        if (remote is null)
+        {
+            return Result<IReadOnlyList<WorkItemState>>.Invalid(NoProject);
+        }
+
+        if (string.IsNullOrWhiteSpace(type))
+        {
+            return Result<IReadOnlyList<WorkItemState>>.Invalid(NoType);
+        }
+
+        Result<ListResponse<WorkItemStateDto>> response = await _http.GetAsync<ListResponse<WorkItemStateDto>>(
+            AzureDevOpsHttp.ProjectRoute(remote, $"wit/workitemtypes/{Uri.EscapeDataString(type.Trim())}/states"),
+            $"the states of {type.Trim()}",
+            cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!response.IsSuccess(out ListResponse<WorkItemStateDto>? states))
+        {
+            return response.WithoutValue().AsFailure<IReadOnlyList<WorkItemState>>();
+        }
+
+        return Result<IReadOnlyList<WorkItemState>>.Success(
+        [
+            .. states.Value
+                .Where(state => !string.IsNullOrWhiteSpace(state.Name))
+                .Select(ToState),
+        ]);
+    }
+
+    /// <summary>
+    /// The people in the project's default team, sorted by name, without groups.
+    /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <remarks>
+    /// For offering whom a work item can be assigned to. Each identity has its picture's
+    /// address in <see cref="AzureDevOpsIdentity.ImageUrl"/> when the server gives one.
+    /// The default team is read from the project first; the members API needs the team's id.
+    /// </remarks>
+    public async Task<Result<IReadOnlyList<AzureDevOpsIdentity>>> GetTeamMembersAsync(
+        AzureDevOpsRemote remote,
+        CancellationToken cancellationToken = default)
+    {
+        if (remote is null)
+        {
+            return Result<IReadOnlyList<AzureDevOpsIdentity>>.Invalid(NoProject);
+        }
+
+        Result<ProjectDto> project = await _http.GetAsync<ProjectDto>(
+            OrganizationRoute(remote, $"projects/{Uri.EscapeDataString(remote.Project)}"),
+            "the project",
+            cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!project.IsSuccess(out ProjectDto? found))
+        {
+            return project.WithoutValue().AsFailure<IReadOnlyList<AzureDevOpsIdentity>>();
+        }
+
+        if (string.IsNullOrEmpty(found.DefaultTeam?.Id))
+        {
+            return Result<IReadOnlyList<AzureDevOpsIdentity>>.NotFound($"The project {remote.Project} has no default team.");
+        }
+
+        string route = $"projects/{Uri.EscapeDataString(remote.Project)}/teams/{Uri.EscapeDataString(found.DefaultTeam.Id)}/members";
+        Result<ListResponse<TeamMemberDto>> members = await _http.GetAsync<ListResponse<TeamMemberDto>>(
+            OrganizationRoute(remote, route),
+            "the team's members",
+            cancellationToken)
+            .ConfigureAwait(false);
+
+        if (!members.IsSuccess(out ListResponse<TeamMemberDto>? list))
+        {
+            return members.WithoutValue().AsFailure<IReadOnlyList<AzureDevOpsIdentity>>();
+        }
+
+        return Result<IReadOnlyList<AzureDevOpsIdentity>>.Success(
+        [
+            .. list.Value
+                .Select(member => member.Identity)
+                .OfType<TeamIdentityDto>()
+                .Where(identity => !identity.IsContainer && !string.IsNullOrEmpty(identity.Id))
+                .Select(ToIdentity)
+                .OrderBy(identity => identity.Name, StringComparer.OrdinalIgnoreCase),
+        ]);
+    }
+
+    /// <summary>The address of an API under the organization, outside any project, with api-version appended.</summary>
+    /// <param name="remote">The organization.</param>
+    /// <param name="relative">The path after <c>_apis/</c>, without a query string.</param>
+    /// <returns>The absolute address.</returns>
+    private static Uri OrganizationRoute(AzureDevOpsRemote remote, string relative) =>
+        new(remote.ApiBaseUri, $"_apis/{relative}?api-version={AzureDevOpsJson.ApiVersion}");
+
+    /// <summary>A state from the API's answer.</summary>
+    /// <param name="dto">The state as the API sent it.</param>
+    /// <returns>The state.</returns>
+    private static WorkItemState ToState(WorkItemStateDto dto) =>
+        new(
+            dto.Name ?? string.Empty,
+            ApiEnum.Parse(dto.Category, WorkItemStateCategory.Unknown),
+            dto.Color ?? string.Empty);
+
+    /// <summary>A person from a team member's identity.</summary>
+    /// <param name="dto">The identity as the API sent it.</param>
+    /// <returns>The person, with the picture's address when there is one.</returns>
+    private static AzureDevOpsIdentity ToIdentity(TeamIdentityDto dto)
+    {
+        Uri? image = null;
+
+        if (IdentityImage.From(dto.ImageUrl, dto.Links).IsSuccess(out Uri? found))
+        {
+            image = found;
+        }
+
+        string id = dto.Id ?? string.Empty;
+
+        return new AzureDevOpsIdentity(id, dto.DisplayName ?? dto.UniqueName ?? id, dto.UniqueName ?? string.Empty, image);
     }
 
     /// <summary>The description fields of a work item.</summary>
@@ -1516,6 +1654,57 @@ internal sealed record TagDto
 {
     [JsonPropertyName("name")]
     public string? Name { get; init; }
+}
+
+internal sealed record WorkItemStateDto
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; init; }
+
+    [JsonPropertyName("color")]
+    public string? Color { get; init; }
+
+    [JsonPropertyName("category")]
+    public string? Category { get; init; }
+}
+
+internal sealed record ProjectDto
+{
+    [JsonPropertyName("defaultTeam")]
+    public TeamReferenceDto? DefaultTeam { get; init; }
+}
+
+internal sealed record TeamReferenceDto
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+}
+
+internal sealed record TeamMemberDto
+{
+    [JsonPropertyName("identity")]
+    public TeamIdentityDto? Identity { get; init; }
+}
+
+internal sealed record TeamIdentityDto
+{
+    [JsonPropertyName("id")]
+    public string? Id { get; init; }
+
+    [JsonPropertyName("displayName")]
+    public string? DisplayName { get; init; }
+
+    [JsonPropertyName("uniqueName")]
+    public string? UniqueName { get; init; }
+
+    [JsonPropertyName("imageUrl")]
+    public string? ImageUrl { get; init; }
+
+    [JsonPropertyName("isContainer")]
+    public bool IsContainer { get; init; }
+
+    [JsonPropertyName("_links")]
+    public IdentityLinksDto? Links { get; init; }
 }
 
 internal sealed record NewCommentDto

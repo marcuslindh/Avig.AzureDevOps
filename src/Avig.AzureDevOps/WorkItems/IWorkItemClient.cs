@@ -249,6 +249,34 @@ public enum WorkItemLinkKind
     Successor = 6,
 }
 
+/// <summary>The category a work item state belongs to, as the process groups them.</summary>
+public enum WorkItemStateCategory
+{
+    /// <summary>Not started: <c>New</c>, <c>Proposed</c>, <c>To Do</c>.</summary>
+    Proposed = 0,
+
+    /// <summary>Being worked on: <c>Active</c>, <c>Committed</c>, <c>Doing</c>.</summary>
+    InProgress = 1,
+
+    /// <summary>Done but not yet closed: <c>Resolved</c>.</summary>
+    Resolved = 2,
+
+    /// <summary>Finished: <c>Closed</c>, <c>Done</c>.</summary>
+    Completed = 3,
+
+    /// <summary>Taken out of the work: <c>Removed</c>.</summary>
+    Removed = 4,
+
+    /// <summary>A category the package does not know.</summary>
+    Unknown = 5,
+}
+
+/// <summary>A state a work item type can be in.</summary>
+/// <param name="Name">The state's name, as the process spells it: <c>New</c>, <c>Active</c>, <c>Closed</c>…</param>
+/// <param name="Category">The category the state belongs to.</param>
+/// <param name="Color">The state's color as six hex digits without <c>#</c>, or empty text.</param>
+public sealed record WorkItemState(string Name, WorkItemStateCategory Category, string Color);
+
 /// <summary>A link from one work item to another.</summary>
 /// <param name="Kind">How they are connected.</param>
 /// <param name="TargetId">The number of the other one.</param>
@@ -456,6 +484,34 @@ public interface IWorkItemClient
     /// a filter on the old one does not find it.
     /// </remarks>
     Task<Result<IReadOnlyList<string>>> GetTagsAsync(
+        AzureDevOpsRemote remote,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The states a work item type can be in, in the order the process defines them.
+    /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="type">The type's name, as the process spells it: <c>Bug</c>, <c>User Story</c>, <c>Task</c>…</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <remarks>
+    /// For offering the states a work item can be moved to. The states differ between types
+    /// and processes — a Task in Agile has no <c>Resolved</c> — so they are read, not guessed.
+    /// </remarks>
+    Task<Result<IReadOnlyList<WorkItemState>>> GetStatesAsync(
+        AzureDevOpsRemote remote,
+        string type,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The people in the project's default team, sorted by name, without groups.
+    /// </summary>
+    /// <param name="remote">The organization and the project.</param>
+    /// <param name="cancellationToken">Cancels the call.</param>
+    /// <remarks>
+    /// For offering whom a work item can be assigned to. Each identity has its picture's
+    /// address in <see cref="AzureDevOpsIdentity.ImageUrl"/> when the server gives one.
+    /// </remarks>
+    Task<Result<IReadOnlyList<AzureDevOpsIdentity>>> GetTeamMembersAsync(
         AzureDevOpsRemote remote,
         CancellationToken cancellationToken = default);
 

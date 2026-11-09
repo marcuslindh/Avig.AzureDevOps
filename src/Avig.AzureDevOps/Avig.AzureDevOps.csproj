@@ -28,7 +28,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageProjectUrl>https://github.com/marcuslindh/Avig.AzureDevOps</PackageProjectUrl>
     <RepositoryUrl>https://github.com/marcuslindh/Avig.AzureDevOps</RepositoryUrl>
-    <PackageReleaseNotes>Profile pictures: people carry the address of their picture (AzureDevOpsIdentity.ImageUrl, WorkItemSummary.AssignedToImageUrl, WorkItemComment.AuthorImageUrl, PullRequestSummary.AuthorImageUrl, PullRequestComment.AuthorImageUrl), and IAvatarClient fetches it with the sign-in, only from Azure DevOps and at most 1 MiB.</PackageReleaseNotes>
+    <PackageReleaseNotes>Choices for editing work items: IWorkItemClient.GetStatesAsync gives the states a type can be in, with their category, and GetTeamMembersAsync the people in the project's default team, with their pictures.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

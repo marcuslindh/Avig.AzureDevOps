@@ -542,6 +542,12 @@ Result<IReadOnlyList<WorkItemSummary>> children = await workItems.GetChildrenAsy
 
 // The tags in the project, alphabetically.
 IReadOnlyList<string> tags = (await workItems.GetTagsAsync(remote)).DataOr([]);
+
+// The states a type can be in, in the process's order, with their category.
+IReadOnlyList<WorkItemState> states = (await workItems.GetStatesAsync(remote, "User Story")).DataOr([]);
+
+// The people in the project's default team, sorted by name, without groups — for assigning.
+IReadOnlyList<AzureDevOpsIdentity> team = (await workItems.GetTeamMembersAsync(remote)).DataOr([]);
 ```
 
 ### The sprint and the board
