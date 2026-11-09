@@ -20,7 +20,7 @@
     -->
     <IsPackable>true</IsPackable>
     <PackageId>Avig.AzureDevOps</PackageId>
-    <Version>1.0.2</Version>
+    <Version>1.0.3</Version>
     <Title>Avig.AzureDevOps</Title>
     <Description>Clients for the Azure DevOps REST API — pull requests, work items, builds and wiki — sign-in with a personal access token that the application supplies, throttling that honours Retry-After, and every call answering with a Result whose message is written to be shown as it is.</Description>
     <PackageTags>azure-devops;pull-requests;work-items;wiki;rest</PackageTags>
