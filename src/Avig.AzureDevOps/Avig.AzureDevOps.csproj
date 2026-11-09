@@ -28,7 +28,7 @@
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageProjectUrl>https://github.com/marcuslindh/Avig.AzureDevOps</PackageProjectUrl>
     <RepositoryUrl>https://github.com/marcuslindh/Avig.AzureDevOps</RepositoryUrl>
-    <PackageReleaseNotes>No exceptions inside the package either: every method checks its arguments and answers with ResultStatus.Invalid and a message saying what is missing, network errors and timeouts become ResultStatus.Unavailable, and failures keep their message and status on the way out. Every member is documented, with every parameter.</PackageReleaseNotes>
+    <PackageReleaseNotes>Profile pictures: people carry the address of their picture (AzureDevOpsIdentity.ImageUrl, WorkItemSummary.AssignedToImageUrl, WorkItemComment.AuthorImageUrl, PullRequestSummary.AuthorImageUrl, PullRequestComment.AuthorImageUrl), and IAvatarClient fetches it with the sign-in, only from Azure DevOps and at most 1 MiB.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

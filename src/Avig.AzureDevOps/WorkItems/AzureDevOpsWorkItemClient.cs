@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Avig.AzureDevOps.Identities;
 using Avig.AzureDevOps.PullRequests;
 using Microsoft.Extensions.Logging;
 
@@ -856,7 +857,8 @@ public sealed class AzureDevOpsWorkItemClient(
             dto.CreatedBy?.DisplayName ?? dto.CreatedBy?.UniqueName ?? AzureDevOpsIdentity.UnknownName,
             html,
             dto.CreatedDate,
-            modifiedAt);
+            modifiedAt,
+            IdentityImage.From(dto.CreatedBy?.ImageUrl, dto.CreatedBy?.Links).Data);
     }
 
     /// <summary>Writes a comment in the work item's discussion.</summary>
@@ -1333,7 +1335,8 @@ public sealed class AzureDevOpsWorkItemClient(
                 remote.ApiBaseUri,
                 $"{Uri.EscapeDataString(remote.Project)}/_workitems/edit/{dto.Id.ToString(CultureInfo.InvariantCulture)}"),
             Text(dto, FieldNames.BoardColumn),
-            storyPoints);
+            storyPoints,
+            ImageUrl(dto, FieldNames.AssignedTo).Data);
     }
 
     /// <summary>The estimate from whichever of the fields has a value.</summary>
@@ -1402,6 +1405,20 @@ public sealed class AzureDevOpsWorkItemClient(
                 unique.GetString() ?? string.Empty,
             _ => string.Empty,
         };
+    }
+
+    /// <summary>The profile picture's address from a person field.</summary>
+    /// <param name="dto">The work item from the API.</param>
+    /// <param name="field">The field's reference name, from <see cref="FieldNames"/>.</param>
+    /// <returns>The address, or <see cref="ResultStatus.NotFound"/> when no one is assigned or the server sent only a name.</returns>
+    private static Result<Uri> ImageUrl(WorkItemDto dto, string field)
+    {
+        if (!dto.Fields.TryGetValue(field, out JsonElement value))
+        {
+            return Result<Uri>.NotFound($"{field} is missing.");
+        }
+
+        return IdentityImage.From(value);
     }
 
     /// <summary>A whole-number field, or <see cref="ResultStatus.NotFound"/> when the work item lacks it.</summary>

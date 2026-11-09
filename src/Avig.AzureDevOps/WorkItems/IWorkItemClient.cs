@@ -22,6 +22,7 @@ namespace Avig.AzureDevOps.WorkItems;
 /// Story Points in Agile, Effort in Scrum, Size in CMMI — but it is the same thing, and it
 /// is shown under one name.
 /// </param>
+/// <param name="AssignedToImageUrl">The address of the assignee's profile picture, or <c>null</c>. Fetch it with <see cref="Identities.IAvatarClient"/>.</param>
 public sealed record WorkItemSummary(
     int Id,
     string Type,
@@ -35,7 +36,8 @@ public sealed record WorkItemSummary(
     DateTime ChangedAt,
     Uri WebUri,
     string BoardColumn = "",
-    double? StoryPoints = null)
+    double? StoryPoints = null,
+    Uri? AssignedToImageUrl = null)
 {
     /// <summary>
     /// The column the card belongs in.
@@ -114,12 +116,14 @@ public sealed record WorkItemDetails(
 /// <param name="Html">The text, as HTML.</param>
 /// <param name="CreatedAt">When it was written.</param>
 /// <param name="ModifiedAt">When it was last changed, or <c>null</c> if it has never been changed.</param>
+/// <param name="AuthorImageUrl">The address of the author's profile picture, or <c>null</c>. Fetch it with <see cref="Identities.IAvatarClient"/>.</param>
 public sealed record WorkItemComment(
     int Id,
     string Author,
     string Html,
     DateTime CreatedAt,
-    DateTime? ModifiedAt);
+    DateTime? ModifiedAt,
+    Uri? AuthorImageUrl = null);
 
 /// <summary>A column on a kanban board.</summary>
 /// <param name="Name">The column's name, as shown on the board.</param>

@@ -43,6 +43,26 @@ internal sealed record IdentityRef
 
     [JsonPropertyName("uniqueName")]
     public string? UniqueName { get; init; }
+
+    [JsonPropertyName("imageUrl")]
+    public string? ImageUrl { get; init; }
+
+    [JsonPropertyName("_links")]
+    public IdentityLinksDto? Links { get; init; }
+}
+
+/// <summary>The links on an identity; only the avatar is read.</summary>
+internal sealed record IdentityLinksDto
+{
+    [JsonPropertyName("avatar")]
+    public LinkDto? Avatar { get; init; }
+}
+
+/// <summary>A link in an API answer's <c>_links</c>.</summary>
+internal sealed record LinkDto
+{
+    [JsonPropertyName("href")]
+    public string? Href { get; init; }
 }
 
 internal sealed record ReviewerDto
@@ -64,6 +84,12 @@ internal sealed record ReviewerDto
 
     [JsonPropertyName("isContainer")]
     public bool IsContainer { get; init; }
+
+    [JsonPropertyName("imageUrl")]
+    public string? ImageUrl { get; init; }
+
+    [JsonPropertyName("_links")]
+    public IdentityLinksDto? Links { get; init; }
 }
 
 internal sealed record SetReviewerDto

@@ -23,6 +23,7 @@ the package a function that returns it.
 - [Pull requests](#pull-requests)
 - [Work items](#work-items)
 - [Builds](#builds)
+- [Profile pictures](#profile-pictures)
 - [Wiki](#wiki)
 - [Statuses](#statuses)
 - [Results](#results)
@@ -699,6 +700,34 @@ bool green = latest is { Outcome: BuildOutcome.Succeeded };
 IEnumerable<BuildSummary> running = recent.Where(build => build.Outcome == BuildOutcome.Running);
 IEnumerable<BuildSummary> waiting = recent.Where(build => build.Status == BuildStatus.NotStarted);
 ```
+
+## Profile pictures
+
+People come with the address of their profile picture: `AzureDevOpsIdentity.ImageUrl`
+(reviewers, the current user, identity search), `WorkItemSummary.AssignedToImageUrl`,
+`WorkItemComment.AuthorImageUrl`, `PullRequestSummary.AuthorImageUrl` and
+`PullRequestComment.AuthorImageUrl`. The address is `_links.avatar.href` when the server sends
+it, otherwise `imageUrl`, and `null` when there is no picture.
+
+The pictures sit behind the sign-in, so an `<img>` cannot point at them. Fetch them with
+`IAvatarClient`:
+
+```csharp
+if (item.AssignedToImageUrl is { } address)
+{
+    Result<AzureDevOpsImage> picture = await avatars.DownloadAsync(address, cancellationToken);
+
+    if (picture.IsSuccess(out AzureDevOpsImage? image))
+    {
+        string dataUri = $"data:{image.ContentType};base64,{Convert.ToBase64String(image.Content.Span)}";
+    }
+}
+```
+
+The token only goes to Azure DevOps: an address that is not https on `dev.azure.com`, one of
+its subdomains or `*.visualstudio.com` is refused with `ResultStatus.Invalid` and nothing is
+sent. A picture larger than 1 MiB is refused too, and an answer that is not an image (a sign-in
+page, for example) is `ResultStatus.Error`. Cache the pictures: the package does not.
 
 ## Wiki
 

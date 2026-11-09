@@ -9,6 +9,7 @@ namespace Avig.AzureDevOps.PullRequests;
 /// <param name="TargetBranch">The branch it is to go into, without <c>refs/heads/</c>.</param>
 /// <param name="CreatedAt">When it was created.</param>
 /// <param name="WebUri">Its address in the web interface.</param>
+/// <param name="AuthorImageUrl">The address of the author's profile picture, or <c>null</c>. Fetch it with <see cref="Identities.IAvatarClient"/>.</param>
 public sealed record PullRequestSummary(
     int Id,
     string Title,
@@ -16,7 +17,8 @@ public sealed record PullRequestSummary(
     string SourceBranch,
     string TargetBranch,
     DateTime CreatedAt,
-    Uri WebUri);
+    Uri WebUri,
+    Uri? AuthorImageUrl = null);
 
 /// <summary>
 /// A changed file in a pull request, with what is needed to attach a comment
@@ -44,7 +46,8 @@ public sealed record PullRequestDetails(
 /// <param name="Author">The display name of the person who wrote it.</param>
 /// <param name="Text">The text.</param>
 /// <param name="PublishedAt">When it was written.</param>
-public sealed record PullRequestComment(int Id, string Author, string Text, DateTime PublishedAt);
+/// <param name="AuthorImageUrl">The address of the author's profile picture, or <c>null</c>. Fetch it with <see cref="Identities.IAvatarClient"/>.</param>
+public sealed record PullRequestComment(int Id, string Author, string Text, DateTime PublishedAt, Uri? AuthorImageUrl = null);
 
 /// <summary>A comment thread on a pull request.</summary>
 /// <param name="Id">The thread's number.</param>

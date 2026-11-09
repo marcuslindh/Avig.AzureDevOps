@@ -115,6 +115,16 @@ internal static partial class Log
         Message = "Removed the link from work item {WorkItemId} to {Artifact}.")]
     public static partial void ArtifactUnlinked(ILogger logger, int workItemId, string artifact);
 
+    /// <summary>A profile picture could not be fetched.</summary>
+    /// <param name="logger">The log to write to.</param>
+    /// <param name="url">The picture's address.</param>
+    /// <param name="status">The server's HTTP status code.</param>
+    [LoggerMessage(
+        EventId = 2613,
+        Level = LogLevel.Warning,
+        Message = "Could not fetch the profile picture {Url}: the server responded {Status}.")]
+    public static partial void AvatarUnavailable(ILogger logger, string url, int status);
+
     // ------------------------------------------------------- work items and builds (2900-)
 
     /// <summary>Work items were fetched.</summary>

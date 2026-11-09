@@ -19,6 +19,9 @@ public sealed class FakeAzureDevOps : HttpMessageHandler
     private readonly Dictionary<string, (HttpStatusCode Status, string Body)> _responses =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly Dictionary<string, (byte[] Body, string ContentType)> _binaryResponses =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private readonly List<RecordedRequest> _requests = [];
 
     /// <summary>The requests the server has received, in order.</summary>
@@ -30,6 +33,13 @@ public sealed class FakeAzureDevOps : HttpMessageHandler
     /// <param name="status">The response's status code.</param>
     public void Respond(string pathFragment, string json, HttpStatusCode status = HttpStatusCode.OK) =>
         _responses[pathFragment] = (status, json);
+
+    /// <summary>Answers requests whose address contains the fragment with bytes, such as a picture.</summary>
+    /// <param name="pathFragment">Part of the address.</param>
+    /// <param name="body">The response body.</param>
+    /// <param name="contentType">The response's media type.</param>
+    public void RespondBytes(string pathFragment, byte[] body, string contentType) =>
+        _binaryResponses[pathFragment] = (body, contentType);
 
     /// <summary>An HttpClient that talks to this server.</summary>
     public HttpClient CreateClient() => new(this, disposeHandler: false);
@@ -62,6 +72,18 @@ public sealed class FakeAzureDevOps : HttpMessageHandler
             uri,
             body,
             request.Headers.Authorization?.ToString()));
+
+        KeyValuePair<string, (byte[] Body, string ContentType)> binary = _binaryResponses.FirstOrDefault(
+            pair => uri.Contains(pair.Key, StringComparison.OrdinalIgnoreCase));
+
+        if (binary.Key is not null)
+        {
+            ByteArrayContent content = new(binary.Value.Body);
+
+            content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(binary.Value.ContentType);
+
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = content };
+        }
 
         KeyValuePair<string, (HttpStatusCode Status, string Body)> match = _responses.FirstOrDefault(
             pair => uri.Contains(pair.Key, StringComparison.OrdinalIgnoreCase));

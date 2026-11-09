@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Avig.AzureDevOps.Identities;
 using Microsoft.Extensions.Logging;
 
 namespace Avig.AzureDevOps.PullRequests;
@@ -1096,7 +1097,8 @@ public sealed class AzureDevOpsPullRequestClient(
         return new AzureDevOpsIdentity(
             id,
             user.ProviderDisplayName ?? string.Empty,
-            Property(user.Properties, "Account").DataOr(string.Empty));
+            Property(user.Properties, "Account").DataOr(string.Empty),
+            IdentityImage.ForId(remote, id).Data);
     }
 
     /// <summary>People and groups whose name or email matches the text.</summary>
@@ -1145,7 +1147,8 @@ public sealed class AzureDevOpsPullRequestClient(
                     identity.Id!,
                     identity.ProviderDisplayName ?? string.Empty,
                     Property(identity.Properties, "Account")
-                        .DataOr(Property(identity.Properties, "Mail").DataOr(string.Empty)))),
+                        .DataOr(Property(identity.Properties, "Mail").DataOr(string.Empty)),
+                    IdentityImage.ForId(remote, identity.Id!).Data)),
         ]);
     }
 
@@ -1415,7 +1418,8 @@ public sealed class AzureDevOpsPullRequestClient(
         new AzureDevOpsIdentity(
             dto.Id ?? string.Empty,
             dto.DisplayName ?? dto.UniqueName ?? AzureDevOpsIdentity.UnknownName,
-            dto.UniqueName ?? string.Empty),
+            dto.UniqueName ?? string.Empty,
+            IdentityImage.From(dto.ImageUrl, dto.Links).Data),
         ToVote(dto.Vote),
         dto.IsRequired,
         dto.IsContainer);
@@ -1476,7 +1480,8 @@ public sealed class AzureDevOpsPullRequestClient(
         ShortBranch(dto.SourceRefName),
         ShortBranch(dto.TargetRefName),
         dto.CreationDate,
-        new Uri($"{remote.WebUri.AbsoluteUri}/pullrequest/{dto.PullRequestId}"));
+        new Uri($"{remote.WebUri.AbsoluteUri}/pullrequest/{dto.PullRequestId}"),
+        IdentityImage.From(dto.CreatedBy?.ImageUrl, dto.CreatedBy?.Links).Data);
 
     /// <summary>A thread from the API's answer, without the system's own messages and deleted comments.</summary>
     /// <param name="dto">The thread from the API.</param>
@@ -1502,7 +1507,8 @@ public sealed class AzureDevOpsPullRequestClient(
         dto.Id,
         dto.Author?.DisplayName ?? dto.Author?.UniqueName ?? AzureDevOpsIdentity.UnknownName,
         dto.Content ?? string.Empty,
-        dto.PublishedDate);
+        dto.PublishedDate,
+        IdentityImage.From(dto.Author?.ImageUrl, dto.Author?.Links).Data);
 
     /// <summary>Where a new thread is attached: the file and the lines on the right-hand side.</summary>
     /// <param name="anchor">The file and lines the comment is attached to, or <c>null</c> for a comment on the overview tab.</param>

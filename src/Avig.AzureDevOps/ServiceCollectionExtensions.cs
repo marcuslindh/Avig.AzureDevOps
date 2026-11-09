@@ -1,4 +1,5 @@
 using Avig.AzureDevOps.Builds;
+using Avig.AzureDevOps.Identities;
 using Avig.AzureDevOps.PullRequests;
 using Avig.AzureDevOps.Wiki;
 using Avig.AzureDevOps.WorkItems;
@@ -59,7 +60,7 @@ public static class ServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers the clients for pull requests, work items, builds and the wiki, without a
+    /// Registers the clients for pull requests, work items, builds, the wiki and profile pictures, without a
     /// sign-in.
     /// </summary>
     /// <param name="services">The services.</param>
@@ -96,6 +97,7 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IWorkItemClient, AzureDevOpsWorkItemClient>(Configure);
         services.AddHttpClient<IBuildClient, AzureDevOpsBuildClient>(Configure);
         services.AddHttpClient<IWikiClient, AzureDevOpsWikiClient>(Configure);
+        services.AddHttpClient<IAvatarClient, AzureDevOpsAvatarClient>(Configure);
 
         return services;
     }
